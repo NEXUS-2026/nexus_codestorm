@@ -29,6 +29,10 @@ LOG_EVERY_N  = 30
 
 
 # ── Health ────────────────────────────────────────────────────
+@app.route("/")
+def index():
+    return jsonify({"status": "ok", "message": "Warehouse Box Counter API is running"})
+
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
@@ -68,6 +72,18 @@ def download_challan(session_id):
 @app.route("/stats/operators")
 def operator_stats():
     return jsonify(get_operator_stats())
+
+
+# ── Session video replay ──────────────────────────────────────
+@app.route("/sessions/<session_id>/video")
+def session_video(session_id):
+    session = get_session(session_id)
+    if not session or not session.get("video_path"):
+        return jsonify({"error": "Video not found"}), 404
+    path = session["video_path"]
+    if not os.path.exists(path):
+        return jsonify({"error": "Video file missing"}), 404
+    return send_file(path, mimetype="video/mp4")
 
 
 # ── WebSocket — live stream ───────────────────────────────────
