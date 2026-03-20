@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getSessions, getVideoUrl, getUploadUrl, downloadChallan } from '../api'
 import {
   ClipboardList, Play, X, RefreshCw, Box, Clock,
   Camera, Upload, Film, AlertCircle, Search,
-  FileText, TrendingUp, Hash, Filter, CheckCircle, Activity
+  FileText, Hash, Filter, CheckCircle, Activity,
+  Download, Eye, User, Package, Zap, QrCode
 } from 'lucide-react'
 
 // ── Video Modal ───────────────────────────────────────────────
@@ -79,6 +81,222 @@ function VideoModal({ session, type, onClose }) {
   )
 }
 
+// ── Challan Preview Modal ─────────────────────────────────────
+function ChallanModal({ session, onClose }) {
+  const [pdfUrl, setPdfUrl]   = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(false)
+
+  useEffect(() => {
+    setLoading(true); setError(false)
+    downloadChallan(session._id)
+      .then(({ data }) => {
+        const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+        setPdfUrl(url)
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
+    return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl) }
+  }, [session._id])
+
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onClose])
+
+  const onBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
+
+  const handleDownload = () => {
+    if (!pdfUrl) return
+    const a = document.createElement('a')
+    a.href = pdfUrl; a.download = `challan_${session._id}.pdf`; a.click()
+  }
+
+  const dur = (() => {
+    if (!session.started_at || !session.ended_at) return null
+    const secs = Math.round((new Date(session.ended_at) - new Date(session.started_at)) / 1000)
+    return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`
+  })()
+
+  return (
+    <div onClick={onBackdrop}
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-2">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-6xl shadow-2xl flex flex-col"
+        style={{ height: '96vh' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-indigo-950 border border-indigo-800 rounded-xl flex items-center justify-center">
+              <FileText size={15} className="text-indigo-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">Challan Preview</p>
+              <p className="text-xs text-gray-500">{session.batch_id} · {session.operator_id}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={handleDownload} disabled={!pdfUrl}
+              className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white px-3 py-2 rounded-xl transition-colors font-medium">
+              <Download size={12} /> Download PDF
+            </button>
+            <button onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Session summary strip */}
+        <div className="grid grid-cols-4 gap-px bg-gray-800 border-b border-gray-800 shrink-0">
+          {[
+            { label: 'Boxes',    value: session.final_count ?? '—', color: 'text-sky-400' },
+            { label: 'Duration', value: dur ?? '—',                  color: 'text-indigo-400' },
+            { label: 'Source',   value: session.source_type === 'upload' ? 'Upload' : 'Live', color: 'text-purple-400' },
+            { label: 'Status',   value: session.status,              color: session.status === 'completed' ? 'text-green-400' : 'text-yellow-400' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-gray-900 px-4 py-2.5 text-center">
+              <p className={`text-base font-black tabular-nums ${color}`}>{value}</p>
+              <p className="text-xs text-gray-600 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* PDF viewer */}
+        <div className="flex-1 bg-gray-950 overflow-hidden rounded-b-2xl" style={{ minHeight: 0 }}>
+          {loading && (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-600">
+              <span className="w-6 h-6 border-2 border-gray-700 border-t-indigo-500 rounded-full animate-spin" />
+              <p className="text-sm">Generating challan...</p>
+            </div>
+          )}
+          {error && (
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <AlertCircle size={28} className="text-red-500" />
+              <p className="text-sm text-gray-400">Failed to generate challan.</p>
+            </div>
+          )}
+          {pdfUrl && !loading && (
+            <iframe
+              src={pdfUrl}
+              className="w-full h-full rounded-b-2xl"
+              style={{ minHeight: 0, border: 'none' }}
+              title="Challan PDF Preview"
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Session Detail Modal (QR deep-link) ──────────────────────
+function SessionDetailModal({ session, onClose, onChallan, onVideo }) {
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onClose])
+
+  const onBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
+
+  const dur = (() => {
+    if (!session.started_at || !session.ended_at) return '—'
+    const secs = Math.round((new Date(session.ended_at) - new Date(session.started_at)) / 1000)
+    return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`
+  })()
+
+  const fmt = (iso) => iso
+    ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : '—'
+
+  const fields = [
+    { label: 'Session ID',  value: session._id,                                          mono: true },
+    { label: 'Batch ID',    value: session.batch_id },
+    { label: 'Operator',    value: session.operator_id },
+    { label: 'Started',     value: fmt(session.started_at) },
+    { label: 'Ended',       value: fmt(session.ended_at) },
+    { label: 'Duration',    value: dur },
+    { label: 'Final Count', value: `${session.final_count ?? '—'} boxes` },
+    { label: 'Source',      value: session.source_type === 'upload' ? 'Uploaded Video' : 'Live Camera' },
+    { label: 'Status',      value: session.status?.toUpperCase() },
+  ]
+
+  return (
+    <div onClick={onBackdrop}
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col overflow-hidden">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-sky-950 border border-sky-800 rounded-xl flex items-center justify-center">
+              <QrCode size={15} className="text-sky-400" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white">Session Details</p>
+              <p className="text-xs text-gray-500">Opened via QR code scan</p>
+            </div>
+          </div>
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Metric strip */}
+        <div className="grid grid-cols-3 gap-px bg-gray-800">
+          {[
+            { label: 'Boxes',    value: session.final_count ?? '—', color: 'text-sky-400' },
+            { label: 'Duration', value: dur,                         color: 'text-indigo-400' },
+            { label: 'Status',   value: session.status,              color: session.status === 'completed' ? 'text-green-400' : 'text-yellow-400' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-gray-900 py-3 text-center">
+              <p className={`text-lg font-black tabular-nums ${color}`}>{value}</p>
+              <p className="text-xs text-gray-600 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Fields */}
+        <div className="flex flex-col divide-y divide-gray-800 overflow-y-auto" style={{ maxHeight: '50vh' }}>
+          {fields.map(({ label, value, mono }) => (
+            <div key={label} className="flex items-start gap-4 px-5 py-3">
+              <span className="text-xs text-gray-500 w-28 shrink-0 pt-0.5">{label}</span>
+              <span className={`text-xs font-semibold text-white break-all ${mono ? 'font-mono text-sky-300' : ''}`}>
+                {value}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 px-5 py-4 border-t border-gray-800">
+          {session.status === 'completed' && (
+            <button onClick={() => { onClose(); onChallan(session) }}
+              className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-indigo-700 hover:bg-indigo-600 text-white px-3 py-2.5 rounded-xl transition-colors font-medium">
+              <Eye size={12} /> View Challan
+            </button>
+          )}
+          {session.video_path && (
+            <button onClick={() => { onClose(); onVideo(session, 'recording') }}
+              className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-2.5 rounded-xl transition-colors font-medium">
+              <Play size={12} fill="white" /> Watch Recording
+            </button>
+          )}
+          {session.source_type === 'upload' && session.upload_path && (
+            <button onClick={() => { onClose(); onVideo(session, 'upload') }}
+              className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-2.5 rounded-xl transition-colors font-medium">
+              <Upload size={12} /> Source Video
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Stat Card ─────────────────────────────────────────────────
 function StatCard({ icon: Icon, label, value, sub, accent = 'sky' }) {
   const colors = {
@@ -120,24 +338,45 @@ function FilterPill({ options, value, onChange }) {
 
 // ── Main Page ─────────────────────────────────────────────────
 export default function Sessions() {
-  const [sessions, setSessions]         = useState([])
-  const [loading, setLoading]           = useState(true)
-  const [fetchError, setFetchError]     = useState(false)
-  const [modal, setModal]               = useState(null)
-  const [search, setSearch]             = useState('')
-  const [filterStatus, setFilterStatus] = useState('all')
-  const [filterSource, setFilterSource] = useState('all')
-  const [challanLoading, setChallanLoading] = useState(null)
+  const [searchParams] = useSearchParams()
+  const [sessions, setSessions]             = useState([])
+  const [loading, setLoading]               = useState(true)
+  const [fetchError, setFetchError]         = useState(false)
+  const [modal, setModal]                   = useState(null)
+  const [challanSession, setChallanSession] = useState(null)
+  const [deepSession, setDeepSession]       = useState(null)
+  const [search, setSearch]                 = useState('')
+  const [filterStatus, setFilterStatus]     = useState('all')
+  const [filterSource, setFilterSource]     = useState('all')
+  const [challanLoading, setChallanLoading] = useState(null)  // kept for compat
+  const highlightId = searchParams.get('id')
+  const cardRefs = useRef({})
 
   const load = () => {
     setLoading(true)
     setFetchError(false)
     getSessions()
-      .then(({ data }) => setSessions(data))
+      .then(({ data }) => {
+        setSessions(data)
+        // If QR deep-link: find the session and open detail modal
+        if (highlightId) {
+          const found = data.find(s => s._id === highlightId)
+          if (found) setDeepSession(found)
+        }
+      })
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false))
   }
   useEffect(() => { load() }, [])
+
+  // Scroll highlighted card into view after sessions load
+  useEffect(() => {
+    if (highlightId && cardRefs.current[highlightId]) {
+      setTimeout(() => {
+        cardRefs.current[highlightId]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 300)
+    }
+  }, [sessions, highlightId])
 
   const stats = useMemo(() => {
     const completed = sessions.filter(s => s.status === 'completed')
@@ -185,6 +424,15 @@ export default function Sessions() {
   return (
     <>
       {modal && <VideoModal session={modal.session} type={modal.type} onClose={() => setModal(null)} />}
+      {challanSession && <ChallanModal session={challanSession} onClose={() => setChallanSession(null)} />}
+      {deepSession && (
+        <SessionDetailModal
+          session={deepSession}
+          onClose={() => setDeepSession(null)}
+          onChallan={(s) => setChallanSession(s)}
+          onVideo={(s, t) => setModal({ session: s, type: t })}
+        />
+      )}
 
       <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
 
@@ -323,7 +571,12 @@ export default function Sessions() {
           <div className="flex flex-col gap-2.5">
             {filtered.map(s => (
               <div key={s._id}
-                className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl px-5 py-4 flex items-center gap-4 transition-all">
+                ref={el => cardRefs.current[s._id] = el}
+                className={`bg-gray-900 border rounded-2xl px-5 py-4 flex items-center gap-4 transition-all ${
+                  highlightId === s._id
+                    ? 'border-sky-500 ring-2 ring-sky-500/30'
+                    : 'border-gray-800 hover:border-gray-700'
+                }`}>
 
                 {/* Count badge */}
                 <div className="w-14 h-14 bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center shrink-0">
@@ -363,12 +616,9 @@ export default function Sessions() {
                 {/* Actions */}
                 <div className="shrink-0 flex items-center gap-2">
                   {s.status === 'completed' && (
-                    <button onClick={() => handleChallan(s._id)} disabled={challanLoading === s._id}
-                      className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-3 py-2 rounded-xl transition-colors font-medium disabled:opacity-50">
-                      {challanLoading === s._id
-                        ? <span className="w-3 h-3 border border-gray-500 border-t-white rounded-full animate-spin" />
-                        : <FileText size={11} />}
-                      Challan
+                    <button onClick={() => setChallanSession(s)}
+                      className="flex items-center gap-1.5 text-xs bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white px-3 py-2 rounded-xl transition-colors font-medium">
+                      <Eye size={11} /> Challan
                     </button>
                   )}
                   {s.video_path ? (
