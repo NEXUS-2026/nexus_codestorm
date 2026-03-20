@@ -28,6 +28,10 @@ FRAME_HEIGHT = 480
 LOG_EVERY_N  = 30
 
 
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
 # ── Health ────────────────────────────────────────────────────
 @app.route("/")
 def index():
@@ -74,6 +78,19 @@ def operator_stats():
     return jsonify(get_operator_stats())
 
 
+# ── Upload video for processing ───────────────────────────────
+@app.route("/upload", methods=["POST"])
+def upload_video():
+    if "video" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    file = request.files["video"]
+    if file.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+    save_path = os.path.abspath(os.path.join(UPLOAD_DIR, file.filename))
+    file.save(save_path)
+    return jsonify({"path": save_path})
+
+
 # ── Session video replay ──────────────────────────────────────
 @app.route("/sessions/<session_id>/video")
 def session_video(session_id):
@@ -98,6 +115,7 @@ def websocket_stream(ws):
     batch_id     = init.get("batch_id", "BATCH-001")
     operator_id  = init.get("operator_id", "OP-001")
     camera_index = int(init.get("camera_index", 0))
+    video_path   = init.get("video_path", None)   # set if using uploaded video
 
     session_id = create_session(batch_id, operator_id)
 
@@ -111,9 +129,12 @@ def websocket_stream(ws):
 
     recorder = VideoRecorder(session_id, fps=10, resolution=(FRAME_WIDTH, FRAME_HEIGHT))
 
-    cap = cv2.VideoCapture(camera_index)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+    # Open video file or camera
+    source = video_path if video_path else camera_index
+    cap = cv2.VideoCapture(source)
+    if not video_path:
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
     if not cap.isOpened():
         ws.send(json.dumps({"error": "Cannot open camera"}))

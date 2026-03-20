@@ -1,65 +1,142 @@
 import { useEffect, useState } from 'react'
 import { getSessions, getVideoUrl } from '../api'
+import { ClipboardList, Play, X, RefreshCw, Box, Clock } from 'lucide-react'
 
 export default function Sessions() {
   const [sessions, setSessions] = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [fetchError, setFetchError] = useState(false)
   const [playingId, setPlayingId] = useState(null)
 
-  useEffect(() => {
-    getSessions().then(({ data }) => setSessions(data)).catch(() => {})
-  }, [])
+  const load = () => {
+    setLoading(true)
+    setFetchError(false)
+    getSessions()
+      .then(({ data }) => setSessions(data))
+      .catch(() => setFetchError(true))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+
+  const fmt = (iso) => iso
+    ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    : '—'
 
   return (
-    <main className="p-6">
-      <h1 className="text-lg font-bold mb-4">All Sessions</h1>
+    <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
 
-      {/* Video replay player */}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <ClipboardList size={18} className="text-sky-400" />
+          <h1 className="text-base font-bold text-white">Sessions</h1>
+          {!loading && (
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
+              {sessions.length}
+            </span>
+          )}
+        </div>
+        <button onClick={load}
+          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors">
+          <RefreshCw size={12} /> Refresh
+        </button>
+      </div>
+
+      {/* Video replay */}
       {playingId && (
-        <div className="mb-4 bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-sm text-gray-400">Replaying session: <span className="text-gray-200">{playingId}</span></p>
-            <button onClick={() => setPlayingId(null)} className="text-gray-500 text-xs hover:text-gray-300">✕ Close</button>
+        <div className="mb-5 bg-gray-900 border border-gray-800 rounded-2xl p-4">
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-xs text-gray-400">
+              Replaying · <span className="text-gray-200 font-mono">{playingId}</span>
+            </p>
+            <button onClick={() => setPlayingId(null)}
+              className="text-gray-500 hover:text-gray-300 bg-gray-800 rounded-lg p-1">
+              <X size={14} />
+            </button>
           </div>
-          <video
-            src={getVideoUrl(playingId)}
-            controls autoPlay
-            className="w-full rounded-lg max-h-80"
-          />
+          <video src={getVideoUrl(playingId)} controls autoPlay
+            className="w-full rounded-xl max-h-72 bg-black" />
         </div>
       )}
 
-      {sessions.length === 0
-        ? <p className="text-gray-500 text-sm">No sessions found.</p>
-        : (
-          <table className="w-full text-sm border border-gray-800 rounded-xl overflow-hidden">
-            <thead className="bg-gray-800 text-gray-400 text-xs">
-              <tr>
-                <th className="px-4 py-2 text-left">Batch</th>
-                <th className="px-4 py-2 text-left">Operator</th>
-                <th className="px-4 py-2 text-left">Boxes</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-left">Replay</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {sessions.map(s => (
-                <tr key={s._id} className="bg-gray-900">
-                  <td className="px-4 py-2 text-gray-200">{s.batch_id}</td>
-                  <td className="px-4 py-2 text-gray-400">{s.operator_id}</td>
-                  <td className="px-4 py-2 text-sky-400 font-bold">{s.final_count ?? '—'}</td>
-                  <td className="px-4 py-2 text-gray-400">{s.status}</td>
-                  <td className="px-4 py-2">
-                    {s.video_path
-                      ? <button onClick={() => setPlayingId(s._id)} className="text-sky-500 underline text-xs">▶ Play</button>
-                      : <span className="text-gray-600 text-xs">No video</span>
-                    }
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )
-      }
+      {/* States */}
+      {loading && (
+        <div className="flex items-center justify-center py-20 text-gray-600 text-sm gap-2">
+          <span className="w-4 h-4 border-2 border-gray-700 border-t-sky-500 rounded-full animate-spin" />
+          Loading sessions...
+        </div>
+      )}
+
+      {!loading && fetchError && (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-red-500">
+          <ClipboardList size={32} />
+          <p className="text-sm">Could not connect to backend. Is the Flask server running on port 5000?</p>
+          <button onClick={load}
+            className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg transition-colors">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !fetchError && sessions.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-600">
+          <ClipboardList size={32} />
+          <p className="text-sm">No sessions yet. Start one from the Dashboard.</p>
+        </div>
+      )}
+
+      {!loading && !fetchError && sessions.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {sessions.map(s => (
+            <div key={s._id}
+              className="bg-gray-900 border border-gray-800 rounded-2xl px-5 py-4 flex items-center gap-4">
+
+              {/* Count badge */}
+              <div className="w-14 h-14 bg-gray-800 rounded-xl flex flex-col items-center justify-center shrink-0">
+                <Box size={14} className="text-sky-500 mb-0.5" />
+                <span className="text-lg font-black text-sky-400 tabular-nums leading-none">
+                  {s.final_count ?? '—'}
+                </span>
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-white truncate">{s.batch_id}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    s.status === 'completed'
+                      ? 'bg-green-950 text-green-400 border border-green-800'
+                      : 'bg-yellow-950 text-yellow-400 border border-yellow-800'
+                  }`}>{s.status}</span>
+                </div>
+                <p className="text-xs text-gray-500">Operator: <span className="text-gray-300">{s.operator_id}</span></p>
+                <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
+                  <Clock size={10} />
+                  {fmt(s.started_at)}
+                  {s.ended_at && <> → {fmt(s.ended_at)}</>}
+                </div>
+              </div>
+
+              {/* Replay */}
+              <div className="shrink-0">
+                {s.video_path
+                  ? (
+                    <button onClick={() => setPlayingId(playingId === s._id ? null : s._id)}
+                      className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg transition-colors">
+                      <Play size={11} fill="white" />
+                      {playingId === s._id ? 'Close' : 'Replay'}
+                    </button>
+                  )
+                  : <span className="text-xs text-gray-700">No video</span>
+                }
+              </div>
+
+            </div>
+          ))}
+        </div>
+      )}
+
     </main>
   )
 }

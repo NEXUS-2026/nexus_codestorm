@@ -10,18 +10,23 @@ export default function useWebSocket({ onFrame, onSessionEnd }) {
   const [error, setError]         = useState(null)
   const wsRef = useRef(null)
 
-  const start = useCallback(({ batchId, operatorId, cameraIndex }) => {
+  const start = useCallback(({ batchId, operatorId, cameraIndex, videoPath }) => {
     setError(null)
     const ws = new WebSocket(WS_URL)
     wsRef.current = ws
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({
+      const payload = {
         action: 'start',
         batch_id: batchId,
         operator_id: operatorId,
-        camera_index: cameraIndex,
-      }))
+      }
+      if (videoPath) {
+        payload.video_path = videoPath
+      } else {
+        payload.camera_index = cameraIndex ?? 0
+      }
+      ws.send(JSON.stringify(payload))
       setStatus(STATUS.RUNNING)
     }
 
