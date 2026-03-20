@@ -1,13 +1,40 @@
 import { NavLink } from 'react-router-dom'
+import { Package, LayoutDashboard, ClipboardList, BarChart2, Radio } from 'lucide-react'
+import { useSession } from '../context/SessionContext'
 
 export default function Header() {
+  const { status } = useSession()
+  const isLive = status === 'running'
+
+  const link = ({ isActive }) =>
+    `flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+      isActive
+        ? 'bg-sky-950 text-sky-400 border border-sky-800'
+        : 'text-gray-500 hover:text-gray-300'
+    }`
+
   return (
-    <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-6">
-      <span className="font-bold">📦 Warehouse Box Counter</span>
-      <nav className="flex gap-4 text-sm">
-        <NavLink to="/"         className={({ isActive }) => isActive ? 'text-sky-400' : 'text-gray-400'}>Dashboard</NavLink>
-        <NavLink to="/sessions" className={({ isActive }) => isActive ? 'text-sky-400' : 'text-gray-400'}>Sessions</NavLink>
-        <NavLink to="/stats"    className={({ isActive }) => isActive ? 'text-sky-400' : 'text-gray-400'}>Stats</NavLink>
+    <header className="bg-gray-900 border-b border-gray-800 px-5 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 bg-sky-600 rounded-lg flex items-center justify-center">
+          <Package size={14} className="text-white" />
+        </div>
+        <span className="text-sm font-bold text-white tracking-tight">Warehouse Counter</span>
+      </div>
+
+      {/* Live session indicator — visible on all pages */}
+      {isLive && (
+        <NavLink to="/"
+          className="flex items-center gap-2 bg-green-950 border border-green-800 px-3 py-1.5 rounded-full hover:bg-green-900 transition-colors">
+          <Radio size={12} className="text-green-400 animate-pulse" />
+          <span className="text-xs font-semibold text-green-400">Session Live</span>
+        </NavLink>
+      )}
+
+      <nav className="flex items-center gap-1">
+        <NavLink to="/"         className={link}><LayoutDashboard size={13} /> Dashboard</NavLink>
+        <NavLink to="/sessions" className={link}><ClipboardList size={13} /> Sessions</NavLink>
+        <NavLink to="/stats"    className={link}><BarChart2 size={13} /> Stats</NavLink>
       </nav>
     </header>
   )

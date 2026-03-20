@@ -18,7 +18,7 @@ logs_col = db["detection_logs"]
 
 # ── Sessions ──────────────────────────────────────────────────
 
-def create_session(batch_id: str, operator_id: str) -> str:
+def create_session(batch_id: str, operator_id: str, source_type: str = "live", upload_path: str = None) -> str:
     doc = {
         "batch_id": batch_id,
         "operator_id": operator_id,
@@ -26,6 +26,8 @@ def create_session(batch_id: str, operator_id: str) -> str:
         "ended_at": None,
         "final_count": None,
         "video_path": None,
+        "source_type": source_type,   # "live" | "upload"
+        "upload_path": upload_path,   # original uploaded file path (upload sessions only)
         "status": "active",
     }
     result = sessions_col.insert_one(doc)
@@ -51,7 +53,7 @@ def get_session(session_id: str) -> dict:
     return doc
 
 
-def list_sessions(limit: int = 20) -> list:
+def list_sessions(limit: int = 200) -> list:
     results = []
     for doc in sessions_col.find().sort("started_at", DESCENDING).limit(limit):
         doc["_id"] = str(doc["_id"])
@@ -77,6 +79,13 @@ def get_logs_for_session(session_id: str) -> list:
         doc["session_id"] = str(doc["session_id"])
         results.append(doc)
     return results
+
+
+def delete_session(session_id: str) -> bool:
+    """Delete a session and all its detection logs. Returns True if session existed."""
+    result = sessions_col.delete_one({"_id": ObjectId(session_id)})
+    logs_col.delete_many({"session_id": ObjectId(session_id)})
+    return result.deleted_count > 0
 
 
 # ── Operator Stats ────────────────────────────────────────────

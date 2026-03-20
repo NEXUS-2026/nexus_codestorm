@@ -3,7 +3,7 @@ import json
 import os
 import cv2
 import numpy as np
-from flask import Flask, jsonify, send_file, request
+from flask import Flask, jsonify, send_file, request, Response
 from flask_cors import CORS
 from flask_sock import Sock
 from dotenv import load_dotenv
@@ -13,7 +13,7 @@ load_dotenv()
 from database import (
     create_session, end_session, get_session,
     list_sessions, log_detection, get_logs_for_session,
-    get_operator_stats,
+    get_operator_stats, delete_session,
 )
 from video_recorder import VideoRecorder
 from pdf_generator import generate_challan
@@ -26,6 +26,10 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "best.pt")
 FRAME_WIDTH  = 640
 FRAME_HEIGHT = 480
 LOG_EVERY_N  = 30
+
+
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 # ── Health ────────────────────────────────────────────────────
@@ -44,12 +48,29 @@ def get_sessions():
     return jsonify(list_sessions())
 
 
-@app.route("/sessions/<session_id>")
-def get_session_detail(session_id):
+@app.route("/sessions/<session_id>", methods=["GET", "DELETE"])
+def session_detail(session_id):
     session = get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
-    return jsonify(session)
+
+    if request.method == "GET":
+        return jsonify(session)
+
+    # DELETE — remove from MongoDB, logs, video file, challan PDF
+    if session.get("video_path") and os.path.exists(session["video_path"]):
+        try: os.remove(session["video_path"])
+        except Exception: pass
+
+    challan_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "challans", f"challan_{session_id}.pdf")
+    )
+    if os.path.exists(challan_path):
+        try: os.remove(challan_path)
+        except Exception: pass
+
+    delete_session(session_id)
+    return jsonify({"deleted": session_id})
 
 
 @app.route("/sessions/<session_id>/logs")
@@ -74,6 +95,54 @@ def operator_stats():
     return jsonify(get_operator_stats())
 
 
+# ── Upload video for processing ───────────────────────────────
+@app.route("/upload", methods=["POST"])
+def upload_video():
+    if "video" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    file = request.files["video"]
+    if file.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+    save_path = os.path.abspath(os.path.join(UPLOAD_DIR, file.filename))
+    file.save(save_path)
+    return jsonify({"path": save_path})
+
+
+# ── Video serving with range support (required for browser <video> seeking) ───
+def serve_video(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".mp4":
+        mimetype = "video/mp4"
+    elif ext == ".avi":
+        mimetype = "video/avi"   # MJPEG AVI — Chrome/Firefox handle this
+    else:
+        mimetype = "video/octet-stream"
+
+    file_size = os.path.getsize(path)
+    range_header = request.headers.get("Range")
+
+    if range_header:
+        byte_range = range_header.replace("bytes=", "").split("-")
+        start = int(byte_range[0])
+        end = int(byte_range[1]) if byte_range[1] else file_size - 1
+        length = end - start + 1
+
+        with open(path, "rb") as f:
+            f.seek(start)
+            data = f.read(length)
+
+        resp = Response(data, 206, mimetype=mimetype, direct_passthrough=True)
+        resp.headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        resp.headers["Accept-Ranges"] = "bytes"
+        resp.headers["Content-Length"] = str(length)
+        return resp
+
+    resp = Response(open(path, "rb").read(), 200, mimetype=mimetype)
+    resp.headers["Accept-Ranges"] = "bytes"
+    resp.headers["Content-Length"] = str(file_size)
+    return resp
+
+
 # ── Session video replay ──────────────────────────────────────
 @app.route("/sessions/<session_id>/video")
 def session_video(session_id):
@@ -83,7 +152,19 @@ def session_video(session_id):
     path = session["video_path"]
     if not os.path.exists(path):
         return jsonify({"error": "Video file missing"}), 404
-    return send_file(path, mimetype="video/mp4")
+    return serve_video(path)
+
+
+# ── Serve original uploaded file ──────────────────────────────
+@app.route("/sessions/<session_id>/upload")
+def session_upload(session_id):
+    session = get_session(session_id)
+    if not session or not session.get("upload_path"):
+        return jsonify({"error": "No uploaded file for this session"}), 404
+    path = session["upload_path"]
+    if not os.path.exists(path):
+        return jsonify({"error": "Uploaded file missing"}), 404
+    return serve_video(path)
 
 
 # ── WebSocket — live stream ───────────────────────────────────
@@ -98,8 +179,10 @@ def websocket_stream(ws):
     batch_id     = init.get("batch_id", "BATCH-001")
     operator_id  = init.get("operator_id", "OP-001")
     camera_index = int(init.get("camera_index", 0))
+    video_path   = init.get("video_path", None)   # set if using uploaded video
 
-    session_id = create_session(batch_id, operator_id)
+    source_type  = "upload" if video_path else "live"
+    session_id   = create_session(batch_id, operator_id, source_type, video_path)
 
     # Load YOLO counter if model exists
     counter = None
@@ -111,9 +194,12 @@ def websocket_stream(ws):
 
     recorder = VideoRecorder(session_id, fps=10, resolution=(FRAME_WIDTH, FRAME_HEIGHT))
 
-    cap = cv2.VideoCapture(camera_index)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+    # Open video file or camera
+    source = video_path if video_path else camera_index
+    cap = cv2.VideoCapture(source)
+    if not video_path:
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
     if not cap.isOpened():
         ws.send(json.dumps({"error": "Cannot open camera"}))
@@ -170,4 +256,4 @@ def websocket_stream(ws):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)
