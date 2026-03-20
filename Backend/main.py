@@ -3,7 +3,7 @@ import json
 import os
 import cv2
 import numpy as np
-from flask import Flask, jsonify, send_file, request
+from flask import Flask, jsonify, send_file, request, Response
 from flask_cors import CORS
 from flask_sock import Sock
 from dotenv import load_dotenv
@@ -91,6 +91,41 @@ def upload_video():
     return jsonify({"path": save_path})
 
 
+# ── Video serving with range support (required for browser <video> seeking) ───
+def serve_video(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".mp4":
+        mimetype = "video/mp4"
+    elif ext == ".avi":
+        mimetype = "video/avi"   # MJPEG AVI — Chrome/Firefox handle this
+    else:
+        mimetype = "video/octet-stream"
+
+    file_size = os.path.getsize(path)
+    range_header = request.headers.get("Range")
+
+    if range_header:
+        byte_range = range_header.replace("bytes=", "").split("-")
+        start = int(byte_range[0])
+        end = int(byte_range[1]) if byte_range[1] else file_size - 1
+        length = end - start + 1
+
+        with open(path, "rb") as f:
+            f.seek(start)
+            data = f.read(length)
+
+        resp = Response(data, 206, mimetype=mimetype, direct_passthrough=True)
+        resp.headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        resp.headers["Accept-Ranges"] = "bytes"
+        resp.headers["Content-Length"] = str(length)
+        return resp
+
+    resp = Response(open(path, "rb").read(), 200, mimetype=mimetype)
+    resp.headers["Accept-Ranges"] = "bytes"
+    resp.headers["Content-Length"] = str(file_size)
+    return resp
+
+
 # ── Session video replay ──────────────────────────────────────
 @app.route("/sessions/<session_id>/video")
 def session_video(session_id):
@@ -100,7 +135,7 @@ def session_video(session_id):
     path = session["video_path"]
     if not os.path.exists(path):
         return jsonify({"error": "Video file missing"}), 404
-    return send_file(path, mimetype="video/mp4")
+    return serve_video(path)
 
 
 # ── Serve original uploaded file ──────────────────────────────
@@ -112,7 +147,7 @@ def session_upload(session_id):
     path = session["upload_path"]
     if not os.path.exists(path):
         return jsonify({"error": "Uploaded file missing"}), 404
-    return send_file(path, mimetype="video/mp4")
+    return serve_video(path)
 
 
 # ── WebSocket — live stream ───────────────────────────────────
@@ -204,4 +239,4 @@ def websocket_stream(ws):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)

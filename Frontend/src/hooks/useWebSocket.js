@@ -3,12 +3,18 @@ import { WS_URL } from '../api'
 
 export const STATUS = { IDLE: 'idle', RUNNING: 'running', STOPPED: 'stopped' }
 
-export default function useWebSocket({ onFrame, onSessionEnd }) {
+export default function useWebSocket() {
   const [status, setStatus]       = useState(STATUS.IDLE)
   const [count, setCount]         = useState(0)
   const [sessionId, setSessionId] = useState(null)
   const [error, setError]         = useState(null)
-  const wsRef = useRef(null)
+  const wsRef      = useRef(null)
+  // Callback refs — updated by Dashboard without recreating the socket
+  const onFrameRef      = useRef(null)
+  const onSessionEndRef = useRef(null)
+
+  const setOnFrame      = useCallback((fn) => { onFrameRef.current = fn },      [])
+  const setOnSessionEnd = useCallback((fn) => { onSessionEndRef.current = fn }, [])
 
   const start = useCallback(({ batchId, operatorId, cameraIndex, videoPath }) => {
     setError(null)
@@ -16,16 +22,9 @@ export default function useWebSocket({ onFrame, onSessionEnd }) {
     wsRef.current = ws
 
     ws.onopen = () => {
-      const payload = {
-        action: 'start',
-        batch_id: batchId,
-        operator_id: operatorId,
-      }
-      if (videoPath) {
-        payload.video_path = videoPath
-      } else {
-        payload.camera_index = cameraIndex ?? 0
-      }
+      const payload = { action: 'start', batch_id: batchId, operator_id: operatorId }
+      if (videoPath) payload.video_path = videoPath
+      else payload.camera_index = cameraIndex ?? 0
       ws.send(JSON.stringify(payload))
       setStatus(STATUS.RUNNING)
     }
@@ -35,10 +34,10 @@ export default function useWebSocket({ onFrame, onSessionEnd }) {
       if (data.error) { setError(data.error); setStatus(STATUS.IDLE); return }
       if (data.session_id) setSessionId(data.session_id)
       setCount(data.count ?? 0)
-      if (data.frame) onFrame?.(data.frame)
+      if (data.frame) onFrameRef.current?.(data.frame)
       if (!data.session_active) {
         setStatus(STATUS.STOPPED)
-        onSessionEnd?.()
+        onSessionEndRef.current?.()
       }
     }
 
@@ -46,13 +45,18 @@ export default function useWebSocket({ onFrame, onSessionEnd }) {
       setError('Cannot connect to backend on port 5000.')
       setStatus(STATUS.IDLE)
     }
-  }, [onFrame, onSessionEnd])
+
+    ws.onclose = () => {
+      // Only mark stopped if we were still running (not already stopped by user)
+      setStatus(prev => prev === STATUS.RUNNING ? STATUS.STOPPED : prev)
+    }
+  }, [])
 
   const stop = useCallback(() => {
     wsRef.current?.close()
     setStatus(STATUS.STOPPED)
-    onSessionEnd?.()
-  }, [onSessionEnd])
+    onSessionEndRef.current?.()
+  }, [])
 
   const reset = useCallback(() => {
     setStatus(STATUS.IDLE)
@@ -61,5 +65,5 @@ export default function useWebSocket({ onFrame, onSessionEnd }) {
     setError(null)
   }, [])
 
-  return { status, count, sessionId, error, start, stop, reset }
+  return { status, count, sessionId, error, start, stop, reset, setOnFrame, setOnSessionEnd }
 }

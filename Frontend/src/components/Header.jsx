@@ -1,7 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Package, LayoutDashboard, ClipboardList, BarChart2 } from 'lucide-react'
+import { Package, LayoutDashboard, ClipboardList, BarChart2, Radio } from 'lucide-react'
+import { useSession } from '../context/SessionContext'
 
 export default function Header() {
+  const { status } = useSession()
+  const isLive = status === 'running'
+
   const link = ({ isActive }) =>
     `flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
       isActive
@@ -17,6 +21,15 @@ export default function Header() {
         </div>
         <span className="text-sm font-bold text-white tracking-tight">Warehouse Counter</span>
       </div>
+
+      {/* Live session indicator — visible on all pages */}
+      {isLive && (
+        <NavLink to="/"
+          className="flex items-center gap-2 bg-green-950 border border-green-800 px-3 py-1.5 rounded-full hover:bg-green-900 transition-colors">
+          <Radio size={12} className="text-green-400 animate-pulse" />
+          <span className="text-xs font-semibold text-green-400">Session Live</span>
+        </NavLink>
+      )}
 
       <nav className="flex items-center gap-1">
         <NavLink to="/"         className={link}><LayoutDashboard size={13} /> Dashboard</NavLink>

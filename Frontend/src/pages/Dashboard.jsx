@@ -1,14 +1,14 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Play, Square, RotateCcw, Camera, User, Hash, Box, Package, Upload, Video, BarChart2, List } from 'lucide-react'
-import useWebSocket from '../hooks/useWebSocket'
+import { useSession } from '../context/SessionContext'
 import { getSessions, uploadVideo } from '../api'
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const [batchId, setBatchId]         = useState('')
   const [operatorId, setOperatorId]   = useState('')
-  const [source, setSource]           = useState('camera') // 'camera' | 'video'
+  const [source, setSource]           = useState('camera')
   const [videoFile, setVideoFile]     = useState(null)
   const [uploading, setUploading]     = useState(false)
   const [sessions, setSessions]       = useState([])
@@ -17,10 +17,13 @@ export default function Dashboard() {
   const fetchSessions = () =>
     getSessions().then(({ data }) => setSessions(data)).catch(() => {})
 
-  const { status, count, error, start, stop, reset } = useWebSocket({
-    onFrame: (f) => { if (imgRef.current) imgRef.current.src = `data:image/jpeg;base64,${f}` },
-    onSessionEnd: fetchSessions,
-  })
+  const { status, count, error, start, stop, reset, setOnFrame, setOnSessionEnd } = useSession()
+
+  // Register callbacks — update refs without recreating the socket
+  useEffect(() => {
+    setOnFrame((f) => { if (imgRef.current) imgRef.current.src = `data:image/jpeg;base64,${f}` })
+    setOnSessionEnd(fetchSessions)
+  }, [setOnFrame, setOnSessionEnd])
 
   const isIdle    = status === 'idle'
   const isRunning = status === 'running'

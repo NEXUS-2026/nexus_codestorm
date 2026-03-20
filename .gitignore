@@ -49,9 +49,11 @@ Thumbs.db
 *.sln
 *.sw?
 
-# ── Misc ──────────────────────────────────────────────────────
-*.env
-*.env.local
+# ── Generated output (keep local only) ───────────────────────
+recordings/
+challans/
+uploads/
+
 *.env.*.local
 .env.development.local
 .env.test.local

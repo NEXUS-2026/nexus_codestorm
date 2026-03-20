@@ -13,6 +13,6 @@ export const uploadVideo      = (file) => {
   form.append('video', file)
   return api.post('/upload', form)
 }
-// challan generation will be added after YOLO model is integrated
+export const downloadChallan  = (id)  => api.post(`/sessions/${id}/challan`, {}, { responseType: 'blob' })
 
 export const WS_URL = 'ws://localhost:5000/ws/stream'

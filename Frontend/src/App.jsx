@@ -1,10 +1,10 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Header from './components/Header'
+import { SessionProvider } from './context/SessionContext'
 
-// Pages are loaded only when the user navigates to them
-const Dashboard    = lazy(() => import('./pages/Dashboard'))
-const Sessions     = lazy(() => import('./pages/Sessions'))
+const Dashboard     = lazy(() => import('./pages/Dashboard'))
+const Sessions      = lazy(() => import('./pages/Sessions'))
 const OperatorStats = lazy(() => import('./pages/OperatorStats'))
 
 function PageLoader() {
@@ -18,16 +18,18 @@ function PageLoader() {
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
-        <Header />
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/"         element={<Dashboard />} />
-            <Route path="/sessions" element={<Sessions />} />
-            <Route path="/stats"    element={<OperatorStats />} />
-          </Routes>
-        </Suspense>
-      </div>
+      <SessionProvider>
+        <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
+          <Header />
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/"         element={<Dashboard />} />
+              <Route path="/sessions" element={<Sessions />} />
+              <Route path="/stats"    element={<OperatorStats />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </SessionProvider>
     </BrowserRouter>
   )
 }

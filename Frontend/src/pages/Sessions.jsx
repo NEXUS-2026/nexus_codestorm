@@ -1,19 +1,133 @@
-import { useEffect, useState } from 'react'
-import { getSessions, getVideoUrl, getUploadUrl } from '../api'
-import { ClipboardList, Play, X, RefreshCw, Box, Clock, Camera, Upload } from 'lucide-react'
+import { useEffect, useState, useRef, useMemo } from 'react'
+import { getSessions, getVideoUrl, getUploadUrl, downloadChallan } from '../api'
+import {
+  ClipboardList, Play, X, RefreshCw, Box, Clock,
+  Camera, Upload, Film, AlertCircle, Search,
+  FileText, TrendingUp, Hash, Filter, CheckCircle, Activity
+} from 'lucide-react'
 
-export default function Sessions() {
-  const [sessions, setSessions] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [fetchError, setFetchError] = useState(false)
-  const [playingId, setPlayingId]     = useState(null)
-  const [playingType, setPlayingType] = useState(null) // 'recording' | 'upload'
+// ── Video Modal ───────────────────────────────────────────────
+function VideoModal({ session, type, onClose }) {
+  const videoRef = useRef(null)
+  const src = type === 'upload' ? getUploadUrl(session._id) : getVideoUrl(session._id)
+  const onBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [onClose])
 
-  const playVideo = (id, type) => {
-    if (playingId === id && playingType === type) { setPlayingId(null); setPlayingType(null); return }
-    setPlayingId(id)
-    setPlayingType(type)
+  return (
+    <div onClick={onBackdrop}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-sky-950 border border-sky-800 rounded-lg flex items-center justify-center">
+              <Film size={14} className="text-sky-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">
+                {type === 'upload' ? 'Source Video' : 'Session Recording'}
+              </p>
+              <p className="text-xs text-gray-500">{session.batch_id} · {session.operator_id}</p>
+            </div>
+          </div>
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors">
+            <X size={14} />
+          </button>
+        </div>
+        <div className="bg-black relative">
+          <video ref={videoRef} src={src} controls autoPlay className="w-full max-h-[60vh]"
+            onError={(e) => {
+              e.target.style.display = 'none'
+              e.target.nextSibling.style.display = 'flex'
+            }} />
+          <div className="hidden items-center justify-center py-16 flex-col gap-3 text-gray-500">
+            <Film size={32} />
+            <p className="text-sm">Browser cannot play this format.</p>
+            <p className="text-xs text-gray-600">The recording uses mp4v codec. New sessions will use MJPEG which plays in-browser.</p>
+            <a href={src} download
+              className="text-xs bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg transition-colors">
+              Download to watch
+            </a>
+          </div>
+        </div>
+        <div className="px-5 py-3 flex items-center gap-4 text-xs text-gray-500 border-t border-gray-800">
+          <span className="flex items-center gap-1.5">
+            <Box size={11} className="text-sky-400" />
+            <span className="text-white font-semibold">{session.final_count ?? '—'}</span> boxes
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Clock size={11} />
+            {session.started_at
+              ? new Date(session.started_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+              : '—'}
+          </span>
+          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ml-auto ${
+            session.source_type === 'upload'
+              ? 'bg-purple-950 text-purple-400 border border-purple-800'
+              : 'bg-sky-950 text-sky-400 border border-sky-800'
+          }`}>
+            {session.source_type === 'upload' ? <Upload size={9} /> : <Camera size={9} />}
+            {session.source_type === 'upload' ? 'Upload' : 'Live'}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Stat Card ─────────────────────────────────────────────────
+function StatCard({ icon: Icon, label, value, sub, accent = 'sky' }) {
+  const colors = {
+    sky:    { bg: 'bg-sky-950',    border: 'border-sky-900',    icon: 'text-sky-400',    val: 'text-sky-400' },
+    green:  { bg: 'bg-green-950',  border: 'border-green-900',  icon: 'text-green-400',  val: 'text-green-400' },
+    purple: { bg: 'bg-purple-950', border: 'border-purple-900', icon: 'text-purple-400', val: 'text-purple-400' },
+    amber:  { bg: 'bg-amber-950',  border: 'border-amber-900',  icon: 'text-amber-400',  val: 'text-amber-400' },
   }
+  const c = colors[accent]
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-3">
+      <div className={`w-9 h-9 ${c.bg} border ${c.border} rounded-xl flex items-center justify-center`}>
+        <Icon size={16} className={c.icon} />
+      </div>
+      <div>
+        <p className={`text-2xl font-black tabular-nums ${c.val}`}>{value}</p>
+        <p className="text-xs font-semibold text-white mt-0.5">{label}</p>
+        {sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ── Filter Pill ───────────────────────────────────────────────
+function FilterPill({ options, value, onChange }) {
+  return (
+    <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-800 rounded-xl p-1">
+      {options.map(o => (
+        <button key={o.value} onClick={() => onChange(o.value)}
+          className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+            value === o.value
+              ? 'bg-gray-700 text-white'
+              : 'text-gray-500 hover:text-gray-300'
+          }`}>{o.label}</button>
+      ))}
+    </div>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────
+export default function Sessions() {
+  const [sessions, setSessions]         = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [fetchError, setFetchError]     = useState(false)
+  const [modal, setModal]               = useState(null)
+  const [search, setSearch]             = useState('')
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterSource, setFilterSource] = useState('all')
+  const [challanLoading, setChallanLoading] = useState(null)
 
   const load = () => {
     setLoading(true)
@@ -23,149 +137,262 @@ export default function Sessions() {
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false))
   }
-
   useEffect(() => { load() }, [])
+
+  const stats = useMemo(() => {
+    const completed = sessions.filter(s => s.status === 'completed')
+    const totalBoxes = completed.reduce((sum, s) => sum + (s.final_count || 0), 0)
+    const avg = completed.length ? Math.round(totalBoxes / completed.length) : 0
+    const liveCount = sessions.filter(s => s.source_type === 'live').length
+    return { total: sessions.length, completed: completed.length, totalBoxes, avg, liveCount }
+  }, [sessions])
+
+  const filtered = useMemo(() => sessions.filter(s => {
+    const q = search.toLowerCase()
+    const matchSearch = !q || s.batch_id?.toLowerCase().includes(q) || s.operator_id?.toLowerCase().includes(q)
+    const matchStatus = filterStatus === 'all' || s.status === filterStatus
+    const matchSource = filterSource === 'all' || s.source_type === filterSource
+    return matchSearch && matchStatus && matchSource
+  }), [sessions, search, filterStatus, filterSource])
 
   const fmt = (iso) => iso
     ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
     : '—'
 
+  const duration = (s) => {
+    if (!s.started_at || !s.ended_at) return null
+    const secs = Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 1000)
+    return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`
+  }
+
+  const handleChallan = async (id) => {
+    setChallanLoading(id)
+    try {
+      const { data } = await downloadChallan(id)
+      const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+      const a = document.createElement('a')
+      a.href = url; a.download = `challan_${id}.pdf`; a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('Failed to generate challan.')
+    } finally {
+      setChallanLoading(null)
+    }
+  }
+
+  const filtersActive = filterStatus !== 'all' || filterSource !== 'all' || search
+
   return (
-    <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
+    <>
+      {modal && <VideoModal session={modal.session} type={modal.type} onClose={() => setModal(null)} />}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <ClipboardList size={18} className="text-sky-400" />
-          <h1 className="text-base font-bold text-white">Sessions</h1>
-          {!loading && (
-            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
-              {sessions.length}
-            </span>
-          )}
-        </div>
-        <button onClick={load}
-          className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-200 bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-lg transition-colors">
-          <RefreshCw size={12} /> Refresh
-        </button>
-      </div>
+      <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
 
-      {/* Video replay */}
-      {playingId && (
-        <div className="mb-5 bg-gray-900 border border-gray-800 rounded-2xl p-4">
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-xs text-gray-400">
-              {playingType === 'upload' ? 'Uploaded video' : 'Session recording'} ·{' '}
-              <span className="text-gray-200 font-mono">{playingId}</span>
-            </p>
-            <button onClick={() => { setPlayingId(null); setPlayingType(null) }}
-              className="text-gray-500 hover:text-gray-300 bg-gray-800 rounded-lg p-1">
-              <X size={14} />
-            </button>
+        {/* ── Page header ── */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-lg font-bold text-white">Sessions</h1>
+            <p className="text-xs text-gray-500 mt-0.5">All packing sessions recorded by the system</p>
           </div>
-          <video
-            src={playingType === 'upload' ? getUploadUrl(playingId) : getVideoUrl(playingId)}
-            controls autoPlay
-            className="w-full rounded-xl max-h-72 bg-black" />
-        </div>
-      )}
-
-      {/* States */}
-      {loading && (
-        <div className="flex items-center justify-center py-20 text-gray-600 text-sm gap-2">
-          <span className="w-4 h-4 border-2 border-gray-700 border-t-sky-500 rounded-full animate-spin" />
-          Loading sessions...
-        </div>
-      )}
-
-      {!loading && fetchError && (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-red-500">
-          <ClipboardList size={32} />
-          <p className="text-sm">Could not connect to backend. Is the Flask server running on port 5000?</p>
           <button onClick={load}
-            className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg transition-colors">
-            Retry
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded-xl transition-colors">
+            <RefreshCw size={11} /> Refresh
           </button>
         </div>
-      )}
 
-      {!loading && !fetchError && sessions.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-600">
-          <ClipboardList size={32} />
-          <p className="text-sm">No sessions yet. Start one from the Dashboard.</p>
-        </div>
-      )}
+        {/* ── Stat cards ── */}
+        {!loading && !fetchError && (
+          <div className="grid grid-cols-4 gap-3 mb-6">
+            <StatCard
+              icon={Hash}
+              label="Total Sessions"
+              value={stats.total}
+              sub="all time"
+              accent="sky"
+            />
+            <StatCard
+              icon={Box}
+              label="Boxes Detected"
+              value={stats.totalBoxes}
+              sub="across completed sessions"
+              accent="purple"
+            />
+            <StatCard
+              icon={CheckCircle}
+              label="Completed"
+              value={stats.completed}
+              sub={`${stats.total - stats.completed} still active`}
+              accent="green"
+            />
+            <StatCard
+              icon={Activity}
+              label="Avg Box Count"
+              value={stats.avg}
+              sub="per completed session"
+              accent="amber"
+            />
+          </div>
+        )}
 
-      {!loading && !fetchError && sessions.length > 0 && (
-        <div className="flex flex-col gap-3">
-          {sessions.map(s => (
-            <div key={s._id}
-              className="bg-gray-900 border border-gray-800 rounded-2xl px-5 py-4 flex items-center gap-4">
+        {/* ── Search + filter bar ── */}
+        {!loading && !fetchError && sessions.length > 0 && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="flex-1 min-w-48 relative">
+              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by batch ID or operator..."
+                className="w-full bg-gray-900 border border-gray-800 focus:border-sky-600 rounded-xl pl-8 pr-4 py-2.5 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-600"
+              />
+            </div>
+            <FilterPill
+              value={filterStatus}
+              onChange={setFilterStatus}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'completed', label: 'Completed' },
+                { value: 'active', label: 'Active' },
+              ]}
+            />
+            <FilterPill
+              value={filterSource}
+              onChange={setFilterSource}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'live', label: 'Live' },
+                { value: 'upload', label: 'Upload' },
+              ]}
+            />
+            {filtersActive && (
+              <button
+                onClick={() => { setSearch(''); setFilterStatus('all'); setFilterSource('all') }}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 px-2 py-2 transition-colors">
+                <X size={12} /> Clear
+              </button>
+            )}
+            <span className="text-xs text-gray-600 ml-auto">
+              {filtered.length} of {sessions.length}
+            </span>
+          </div>
+        )}
 
-              {/* Count badge */}
-              <div className="w-14 h-14 bg-gray-800 rounded-xl flex flex-col items-center justify-center shrink-0">
-                <Box size={14} className="text-sky-500 mb-0.5" />
-                <span className="text-lg font-black text-sky-400 tabular-nums leading-none">
-                  {s.final_count ?? '—'}
-                </span>
-              </div>
+        {/* ── States ── */}
+        {loading && (
+          <div className="flex items-center justify-center py-24 gap-2 text-gray-600 text-sm">
+            <span className="w-4 h-4 border-2 border-gray-700 border-t-sky-500 rounded-full animate-spin" />
+            Loading sessions...
+          </div>
+        )}
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-semibold text-white truncate">{s.batch_id}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    s.status === 'completed'
-                      ? 'bg-green-950 text-green-400 border border-green-800'
-                      : 'bg-yellow-950 text-yellow-400 border border-yellow-800'
-                  }`}>{s.status}</span>
-                  {/* Source tag */}
-                  <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
-                    s.source_type === 'upload'
-                      ? 'bg-purple-950 text-purple-400 border border-purple-800'
-                      : 'bg-sky-950 text-sky-400 border border-sky-800'
-                  }`}>
-                    {s.source_type === 'upload'
-                      ? <><Upload size={9} /> Upload</>
-                      : <><Camera size={9} /> Live</>}
+        {!loading && fetchError && (
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
+            <div className="w-12 h-12 bg-red-950 border border-red-800 rounded-2xl flex items-center justify-center">
+              <AlertCircle size={20} className="text-red-400" />
+            </div>
+            <p className="text-sm text-gray-400">Backend not reachable on port 5000</p>
+            <button onClick={load}
+              className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2 rounded-lg border border-gray-700 transition-colors">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!loading && !fetchError && sessions.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
+            <div className="w-12 h-12 bg-gray-800 border border-gray-700 rounded-2xl flex items-center justify-center">
+              <ClipboardList size={20} className="text-gray-600" />
+            </div>
+            <p className="text-sm text-gray-500">No sessions yet. Start one from the Dashboard.</p>
+          </div>
+        )}
+
+        {!loading && !fetchError && sessions.length > 0 && filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <Filter size={24} className="text-gray-700" />
+            <p className="text-sm text-gray-500">No sessions match your filters.</p>
+            <button onClick={() => { setSearch(''); setFilterStatus('all'); setFilterSource('all') }}
+              className="text-xs text-sky-400 hover:text-sky-300 transition-colors">
+              Clear filters
+            </button>
+          </div>
+        )}
+
+        {/* ── Session cards ── */}
+        {!loading && !fetchError && filtered.length > 0 && (
+          <div className="flex flex-col gap-2.5">
+            {filtered.map(s => (
+              <div key={s._id}
+                className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl px-5 py-4 flex items-center gap-4 transition-all">
+
+                {/* Count badge */}
+                <div className="w-14 h-14 bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center shrink-0">
+                  <Box size={11} className="text-sky-500 mb-0.5" />
+                  <span className="text-xl font-black text-sky-400 tabular-nums leading-none">
+                    {s.final_count ?? '—'}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500">Operator: <span className="text-gray-300">{s.operator_id}</span></p>
-                <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
-                  <Clock size={10} />
-                  {fmt(s.started_at)}
-                  {s.ended_at && <> → {fmt(s.ended_at)}</>}
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-sm font-semibold text-white">{s.batch_id}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      s.status === 'completed'
+                        ? 'bg-green-950 text-green-400 border border-green-800'
+                        : 'bg-yellow-950 text-yellow-400 border border-yellow-800'
+                    }`}>{s.status}</span>
+                    <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                      s.source_type === 'upload'
+                        ? 'bg-purple-950 text-purple-400 border border-purple-800'
+                        : 'bg-sky-950 text-sky-400 border border-sky-800'
+                    }`}>
+                      {s.source_type === 'upload' ? <Upload size={9} /> : <Camera size={9} />}
+                      {s.source_type === 'upload' ? 'Upload' : 'Live'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Operator: <span className="text-gray-300">{s.operator_id}</span>
+                  </p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
+                    <span className="flex items-center gap-1"><Clock size={10} /> {fmt(s.started_at)}</span>
+                    {duration(s) && <span>· {duration(s)}</span>}
+                  </div>
                 </div>
-              </div>
 
-              {/* Video buttons */}
-              <div className="shrink-0 flex flex-col gap-1.5 items-end">
-                {/* Recording — always shown if video_path exists */}
-                {s.video_path
-                  ? (
-                    <button onClick={() => playVideo(s._id, 'recording')}
-                      className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg transition-colors">
-                      <Play size={11} fill="white" />
-                      {playingId === s._id && playingType === 'recording' ? 'Close' : 'Recording'}
+                {/* Actions */}
+                <div className="shrink-0 flex items-center gap-2">
+                  {s.status === 'completed' && (
+                    <button onClick={() => handleChallan(s._id)} disabled={challanLoading === s._id}
+                      className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-3 py-2 rounded-xl transition-colors font-medium disabled:opacity-50">
+                      {challanLoading === s._id
+                        ? <span className="w-3 h-3 border border-gray-500 border-t-white rounded-full animate-spin" />
+                        : <FileText size={11} />}
+                      Challan
                     </button>
-                  )
-                  : <span className="text-xs text-gray-700">No recording</span>
-                }
-                {/* Uploaded video — only for upload sessions */}
-                {s.source_type === 'upload' && s.upload_path && (
-                  <button onClick={() => playVideo(s._id, 'upload')}
-                    className="flex items-center gap-1.5 text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg transition-colors">
-                    <Upload size={11} />
-                    {playingId === s._id && playingType === 'upload' ? 'Close' : 'Source Video'}
-                  </button>
-                )}
+                  )}
+                  {s.video_path ? (
+                    <button onClick={() => setModal({ session: s, type: 'recording' })}
+                      className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-2 rounded-xl transition-colors font-medium">
+                      <Play size={11} fill="white" /> Recording
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-700">No recording</span>
+                  )}
+                  {s.source_type === 'upload' && s.upload_path && (
+                    <button onClick={() => setModal({ session: s, type: 'upload' })}
+                      className="flex items-center gap-1.5 text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-2 rounded-xl transition-colors font-medium">
+                      <Upload size={11} /> Source
+                    </button>
+                  )}
+                </div>
+
               </div>
+            ))}
+          </div>
+        )}
 
-            </div>
-          ))}
-        </div>
-      )}
-
-    </main>
+      </main>
+    </>
   )
 }
