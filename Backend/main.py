@@ -13,7 +13,7 @@ load_dotenv()
 from database import (
     create_session, end_session, get_session,
     list_sessions, log_detection, get_logs_for_session,
-    get_operator_stats,
+    get_operator_stats, delete_session,
 )
 from video_recorder import VideoRecorder
 from pdf_generator import generate_challan
@@ -48,12 +48,29 @@ def get_sessions():
     return jsonify(list_sessions())
 
 
-@app.route("/sessions/<session_id>")
-def get_session_detail(session_id):
+@app.route("/sessions/<session_id>", methods=["GET", "DELETE"])
+def session_detail(session_id):
     session = get_session(session_id)
     if not session:
         return jsonify({"error": "Session not found"}), 404
-    return jsonify(session)
+
+    if request.method == "GET":
+        return jsonify(session)
+
+    # DELETE — remove from MongoDB, logs, video file, challan PDF
+    if session.get("video_path") and os.path.exists(session["video_path"]):
+        try: os.remove(session["video_path"])
+        except Exception: pass
+
+    challan_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "challans", f"challan_{session_id}.pdf")
+    )
+    if os.path.exists(challan_path):
+        try: os.remove(challan_path)
+        except Exception: pass
+
+    delete_session(session_id)
+    return jsonify({"deleted": session_id})
 
 
 @app.route("/sessions/<session_id>/logs")

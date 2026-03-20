@@ -14,5 +14,6 @@ export const uploadVideo      = (file) => {
   return api.post('/upload', form)
 }
 export const downloadChallan  = (id)  => api.post(`/sessions/${id}/challan`, {}, { responseType: 'blob' })
+export const deleteSession    = (id)  => api.delete(`/sessions/${id}`)
 
 export const WS_URL = 'ws://localhost:5000/ws/stream'

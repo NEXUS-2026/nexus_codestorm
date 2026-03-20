@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getSessions, getVideoUrl, getUploadUrl, downloadChallan } from '../api'
+import { getSessions, getVideoUrl, getUploadUrl, downloadChallan, deleteSession } from '../api'
 import {
   ClipboardList, Play, X, RefreshCw, Box, Clock,
   Camera, Upload, Film, AlertCircle, Search,
   FileText, Hash, Filter, CheckCircle, Activity,
-  Download, Eye, User, Package, Zap, QrCode
+  Download, Eye, User, Package, Zap, QrCode, Trash2,
+  ChevronDown, ChevronUp, Pencil
 } from 'lucide-react'
 
 // ── Video Modal ───────────────────────────────────────────────
@@ -83,9 +84,12 @@ function VideoModal({ session, type, onClose }) {
 
 // ── Challan Preview Modal ─────────────────────────────────────
 function ChallanModal({ session, onClose }) {
-  const [pdfUrl, setPdfUrl]   = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(false)
+  const [pdfUrl, setPdfUrl]     = useState(null)
+  const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState(false)
+  const defaultName = `${session.batch_id}_${session.operator_id}_challan`
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+  const [fileName, setFileName] = useState(defaultName)
 
   useEffect(() => {
     setLoading(true); setError(false)
@@ -110,7 +114,9 @@ function ChallanModal({ session, onClose }) {
   const handleDownload = () => {
     if (!pdfUrl) return
     const a = document.createElement('a')
-    a.href = pdfUrl; a.download = `challan_${session._id}.pdf`; a.click()
+    a.href = pdfUrl
+    a.download = `${fileName || defaultName}.pdf`
+    a.click()
   }
 
   const dur = (() => {
@@ -137,9 +143,20 @@ function ChallanModal({ session, onClose }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Editable filename */}
+            <div className="flex items-center gap-1.5 bg-gray-800 border border-gray-700 rounded-xl px-2.5 py-1.5">
+              <Pencil size={10} className="text-gray-500 shrink-0" />
+              <input
+                value={fileName}
+                onChange={e => setFileName(e.target.value.replace(/[^a-zA-Z0-9_\-\s]/g, ''))}
+                className="bg-transparent text-xs text-gray-200 outline-none w-44 placeholder:text-gray-600"
+                placeholder="filename"
+              />
+              <span className="text-xs text-gray-600 shrink-0">.pdf</span>
+            </div>
             <button onClick={handleDownload} disabled={!pdfUrl}
               className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white px-3 py-2 rounded-xl transition-colors font-medium">
-              <Download size={12} /> Download PDF
+              <Download size={12} /> Download
             </button>
             <button onClick={onClose}
               className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition-colors">
@@ -349,6 +366,9 @@ export default function Sessions() {
   const [filterStatus, setFilterStatus]     = useState('all')
   const [filterSource, setFilterSource]     = useState('all')
   const [challanLoading, setChallanLoading] = useState(null)  // kept for compat
+  const [deleteId, setDeleteId]             = useState(null)
+  const [deleting, setDeleting]             = useState(null)
+  const [expandedId, setExpandedId]         = useState(null)
   const highlightId = searchParams.get('id')
   const cardRefs = useRef({})
 
@@ -421,6 +441,18 @@ export default function Sessions() {
 
   const filtersActive = filterStatus !== 'all' || filterSource !== 'all' || search
 
+  const handleDelete = async (id) => {
+    setDeleting(id); setDeleteId(null)
+    try {
+      await deleteSession(id)
+      setSessions(prev => prev.filter(s => s._id !== id))
+    } catch {
+      alert('Failed to delete session.')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
   return (
     <>
       {modal && <VideoModal session={modal.session} type={modal.type} onClose={() => setModal(null)} />}
@@ -432,6 +464,31 @@ export default function Sessions() {
           onChallan={(s) => setChallanSession(s)}
           onVideo={(s, t) => setModal({ session: s, type: t })}
         />
+      )}
+
+      {/* ── Delete confirm dialog ── */}
+      {deleteId && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <div className="w-10 h-10 bg-red-950 border border-red-800 rounded-xl flex items-center justify-center mb-4">
+              <Trash2 size={16} className="text-red-400" />
+            </div>
+            <p className="text-sm font-bold text-white mb-1">Delete this session?</p>
+            <p className="text-xs text-gray-500 mb-5">
+              This will permanently remove the session, all detection logs, the recording, and the challan PDF from the server. This cannot be undone.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteId(null)}
+                className="flex-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-xl border border-gray-700 transition-colors font-medium">
+                Cancel
+              </button>
+              <button onClick={() => handleDelete(deleteId)}
+                className="flex-1 text-xs bg-red-700 hover:bg-red-600 text-white px-4 py-2.5 rounded-xl transition-colors font-medium">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
@@ -569,76 +626,126 @@ export default function Sessions() {
         {/* ── Session cards ── */}
         {!loading && !fetchError && filtered.length > 0 && (
           <div className="flex flex-col gap-2.5">
-            {filtered.map(s => (
-              <div key={s._id}
-                ref={el => cardRefs.current[s._id] = el}
-                className={`bg-gray-900 border rounded-2xl px-5 py-4 flex items-center gap-4 transition-all ${
-                  highlightId === s._id
-                    ? 'border-sky-500 ring-2 ring-sky-500/30'
-                    : 'border-gray-800 hover:border-gray-700'
-                }`}>
+            {filtered.map(s => {
+              const isExpanded = expandedId === s._id
+              const dur = duration(s)
+              return (
+                <div key={s._id}
+                  ref={el => cardRefs.current[s._id] = el}
+                  className={`bg-gray-900 border rounded-2xl transition-all ${
+                    highlightId === s._id
+                      ? 'border-sky-500 ring-2 ring-sky-500/30'
+                      : 'border-gray-800 hover:border-gray-700'
+                  }`}>
 
-                {/* Count badge */}
-                <div className="w-14 h-14 bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center shrink-0">
-                  <Box size={11} className="text-sky-500 mb-0.5" />
-                  <span className="text-xl font-black text-sky-400 tabular-nums leading-none">
-                    {s.final_count ?? '—'}
-                  </span>
-                </div>
+                  {/* ── Collapsed row (always visible) ── */}
+                  <div
+                    className="px-5 py-4 flex items-center gap-4 cursor-pointer select-none"
+                    onClick={() => setExpandedId(isExpanded ? null : s._id)}>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-sm font-semibold text-white">{s.batch_id}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      s.status === 'completed'
-                        ? 'bg-green-950 text-green-400 border border-green-800'
-                        : 'bg-yellow-950 text-yellow-400 border border-yellow-800'
-                    }`}>{s.status}</span>
-                    <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
-                      s.source_type === 'upload'
-                        ? 'bg-purple-950 text-purple-400 border border-purple-800'
-                        : 'bg-sky-950 text-sky-400 border border-sky-800'
-                    }`}>
-                      {s.source_type === 'upload' ? <Upload size={9} /> : <Camera size={9} />}
-                      {s.source_type === 'upload' ? 'Upload' : 'Live'}
-                    </span>
+                    {/* Count badge */}
+                    <div className="w-14 h-14 bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center shrink-0">
+                      <Box size={11} className="text-sky-500 mb-0.5" />
+                      <span className="text-xl font-black text-sky-400 tabular-nums leading-none">
+                        {s.final_count ?? '—'}
+                      </span>
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-sm font-semibold text-white">{s.batch_id}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          s.status === 'completed'
+                            ? 'bg-green-950 text-green-400 border border-green-800'
+                            : 'bg-yellow-950 text-yellow-400 border border-yellow-800'
+                        }`}>{s.status}</span>
+                        <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                          s.source_type === 'upload'
+                            ? 'bg-purple-950 text-purple-400 border border-purple-800'
+                            : 'bg-sky-950 text-sky-400 border border-sky-800'
+                        }`}>
+                          {s.source_type === 'upload' ? <Upload size={9} /> : <Camera size={9} />}
+                          {s.source_type === 'upload' ? 'Upload' : 'Live'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Operator: <span className="text-gray-300">{s.operator_id}</span>
+                      </p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
+                        <span className="flex items-center gap-1"><Clock size={10} /> {fmt(s.started_at)}</span>
+                        {dur && <span>· {dur}</span>}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="shrink-0 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                      {s.status === 'completed' && (
+                        <button onClick={() => setChallanSession(s)}
+                          className="flex items-center gap-1.5 text-xs bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white px-3 py-2 rounded-xl transition-colors font-medium">
+                          <Eye size={11} /> Challan
+                        </button>
+                      )}
+                      {s.video_path ? (
+                        <button onClick={() => setModal({ session: s, type: 'recording' })}
+                          className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-2 rounded-xl transition-colors font-medium">
+                          <Play size={11} fill="white" /> Recording
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-700">No recording</span>
+                      )}
+                      {s.source_type === 'upload' && s.upload_path && (
+                        <button onClick={() => setModal({ session: s, type: 'upload' })}
+                          className="flex items-center gap-1.5 text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-2 rounded-xl transition-colors font-medium">
+                          <Upload size={11} /> Source
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setDeleteId(s._id)}
+                        disabled={deleting === s._id}
+                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 hover:bg-red-950 hover:border-red-800 border border-gray-700 text-gray-600 hover:text-red-400 transition-colors disabled:opacity-40">
+                        {deleting === s._id
+                          ? <span className="w-3 h-3 border border-gray-600 border-t-red-400 rounded-full animate-spin" />
+                          : <Trash2 size={12} />}
+                      </button>
+                    </div>
+
+                    {/* Expand chevron */}
+                    <div className="text-gray-600 shrink-0">
+                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    Operator: <span className="text-gray-300">{s.operator_id}</span>
-                  </p>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
-                    <span className="flex items-center gap-1"><Clock size={10} /> {fmt(s.started_at)}</span>
-                    {duration(s) && <span>· {duration(s)}</span>}
-                  </div>
-                </div>
 
-                {/* Actions */}
-                <div className="shrink-0 flex items-center gap-2">
-                  {s.status === 'completed' && (
-                    <button onClick={() => setChallanSession(s)}
-                      className="flex items-center gap-1.5 text-xs bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white px-3 py-2 rounded-xl transition-colors font-medium">
-                      <Eye size={11} /> Challan
-                    </button>
+                  {/* ── Expanded detail panel ── */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-800 px-5 py-4">
+                      <div className="grid grid-cols-2 gap-x-8 gap-y-2.5">
+                        {[
+                          { label: 'Session ID',   value: s._id,          mono: true },
+                          { label: 'Batch ID',     value: s.batch_id },
+                          { label: 'Operator',     value: s.operator_id },
+                          { label: 'Status',       value: s.status?.toUpperCase() },
+                          { label: 'Source',       value: s.source_type === 'upload' ? 'Uploaded Video' : 'Live Camera' },
+                          { label: 'Final Count',  value: `${s.final_count ?? '—'} boxes` },
+                          { label: 'Started At',   value: fmt(s.started_at) },
+                          { label: 'Ended At',     value: fmt(s.ended_at) },
+                          { label: 'Duration',     value: dur ?? '—' },
+                          { label: 'Has Recording',value: s.video_path ? 'Yes' : 'No' },
+                        ].map(({ label, value, mono }) => (
+                          <div key={label} className="flex items-start gap-3">
+                            <span className="text-xs text-gray-500 w-28 shrink-0 pt-0.5">{label}</span>
+                            <span className={`text-xs font-semibold text-white break-all ${mono ? 'font-mono text-sky-300 text-[10px]' : ''}`}>
+                              {value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                  {s.video_path ? (
-                    <button onClick={() => setModal({ session: s, type: 'recording' })}
-                      className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-2 rounded-xl transition-colors font-medium">
-                      <Play size={11} fill="white" /> Recording
-                    </button>
-                  ) : (
-                    <span className="text-xs text-gray-700">No recording</span>
-                  )}
-                  {s.source_type === 'upload' && s.upload_path && (
-                    <button onClick={() => setModal({ session: s, type: 'upload' })}
-                      className="flex items-center gap-1.5 text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-2 rounded-xl transition-colors font-medium">
-                      <Upload size={11} /> Source
-                    </button>
-                  )}
-                </div>
 
-              </div>
-            ))}
+                </div>
+              )
+            })}
           </div>
         )}
 
