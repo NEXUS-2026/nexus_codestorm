@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react'
-import { getSessions, getVideoUrl } from '../api'
-import { ClipboardList, Play, X, RefreshCw, Box, Clock } from 'lucide-react'
+import { getSessions, getVideoUrl, getUploadUrl } from '../api'
+import { ClipboardList, Play, X, RefreshCw, Box, Clock, Camera, Upload } from 'lucide-react'
 
 export default function Sessions() {
   const [sessions, setSessions] = useState([])
   const [loading, setLoading]   = useState(true)
   const [fetchError, setFetchError] = useState(false)
-  const [playingId, setPlayingId] = useState(null)
+  const [playingId, setPlayingId]     = useState(null)
+  const [playingType, setPlayingType] = useState(null) // 'recording' | 'upload'
+
+  const playVideo = (id, type) => {
+    if (playingId === id && playingType === type) { setPlayingId(null); setPlayingType(null); return }
+    setPlayingId(id)
+    setPlayingType(type)
+  }
 
   const load = () => {
     setLoading(true)
@@ -48,14 +55,17 @@ export default function Sessions() {
         <div className="mb-5 bg-gray-900 border border-gray-800 rounded-2xl p-4">
           <div className="flex justify-between items-center mb-3">
             <p className="text-xs text-gray-400">
-              Replaying · <span className="text-gray-200 font-mono">{playingId}</span>
+              {playingType === 'upload' ? 'Uploaded video' : 'Session recording'} ·{' '}
+              <span className="text-gray-200 font-mono">{playingId}</span>
             </p>
-            <button onClick={() => setPlayingId(null)}
+            <button onClick={() => { setPlayingId(null); setPlayingType(null) }}
               className="text-gray-500 hover:text-gray-300 bg-gray-800 rounded-lg p-1">
               <X size={14} />
             </button>
           </div>
-          <video src={getVideoUrl(playingId)} controls autoPlay
+          <video
+            src={playingType === 'upload' ? getUploadUrl(playingId) : getVideoUrl(playingId)}
+            controls autoPlay
             className="w-full rounded-xl max-h-72 bg-black" />
         </div>
       )}
@@ -109,6 +119,16 @@ export default function Sessions() {
                       ? 'bg-green-950 text-green-400 border border-green-800'
                       : 'bg-yellow-950 text-yellow-400 border border-yellow-800'
                   }`}>{s.status}</span>
+                  {/* Source tag */}
+                  <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+                    s.source_type === 'upload'
+                      ? 'bg-purple-950 text-purple-400 border border-purple-800'
+                      : 'bg-sky-950 text-sky-400 border border-sky-800'
+                  }`}>
+                    {s.source_type === 'upload'
+                      ? <><Upload size={9} /> Upload</>
+                      : <><Camera size={9} /> Live</>}
+                  </span>
                 </div>
                 <p className="text-xs text-gray-500">Operator: <span className="text-gray-300">{s.operator_id}</span></p>
                 <div className="flex items-center gap-1 mt-1 text-xs text-gray-600">
@@ -118,18 +138,27 @@ export default function Sessions() {
                 </div>
               </div>
 
-              {/* Replay */}
-              <div className="shrink-0">
+              {/* Video buttons */}
+              <div className="shrink-0 flex flex-col gap-1.5 items-end">
+                {/* Recording — always shown if video_path exists */}
                 {s.video_path
                   ? (
-                    <button onClick={() => setPlayingId(playingId === s._id ? null : s._id)}
+                    <button onClick={() => playVideo(s._id, 'recording')}
                       className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg transition-colors">
                       <Play size={11} fill="white" />
-                      {playingId === s._id ? 'Close' : 'Replay'}
+                      {playingId === s._id && playingType === 'recording' ? 'Close' : 'Recording'}
                     </button>
                   )
-                  : <span className="text-xs text-gray-700">No video</span>
+                  : <span className="text-xs text-gray-700">No recording</span>
                 }
+                {/* Uploaded video — only for upload sessions */}
+                {s.source_type === 'upload' && s.upload_path && (
+                  <button onClick={() => playVideo(s._id, 'upload')}
+                    className="flex items-center gap-1.5 text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg transition-colors">
+                    <Upload size={11} />
+                    {playingId === s._id && playingType === 'upload' ? 'Close' : 'Source Video'}
+                  </button>
+                )}
               </div>
 
             </div>

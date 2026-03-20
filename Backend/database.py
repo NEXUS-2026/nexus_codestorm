@@ -18,7 +18,7 @@ logs_col = db["detection_logs"]
 
 # ── Sessions ──────────────────────────────────────────────────
 
-def create_session(batch_id: str, operator_id: str) -> str:
+def create_session(batch_id: str, operator_id: str, source_type: str = "live", upload_path: str = None) -> str:
     doc = {
         "batch_id": batch_id,
         "operator_id": operator_id,
@@ -26,6 +26,8 @@ def create_session(batch_id: str, operator_id: str) -> str:
         "ended_at": None,
         "final_count": None,
         "video_path": None,
+        "source_type": source_type,   # "live" | "upload"
+        "upload_path": upload_path,   # original uploaded file path (upload sessions only)
         "status": "active",
     }
     result = sessions_col.insert_one(doc)

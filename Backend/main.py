@@ -103,6 +103,18 @@ def session_video(session_id):
     return send_file(path, mimetype="video/mp4")
 
 
+# ── Serve original uploaded file ──────────────────────────────
+@app.route("/sessions/<session_id>/upload")
+def session_upload(session_id):
+    session = get_session(session_id)
+    if not session or not session.get("upload_path"):
+        return jsonify({"error": "No uploaded file for this session"}), 404
+    path = session["upload_path"]
+    if not os.path.exists(path):
+        return jsonify({"error": "Uploaded file missing"}), 404
+    return send_file(path, mimetype="video/mp4")
+
+
 # ── WebSocket — live stream ───────────────────────────────────
 @sock.route("/ws/stream")
 def websocket_stream(ws):
@@ -117,7 +129,8 @@ def websocket_stream(ws):
     camera_index = int(init.get("camera_index", 0))
     video_path   = init.get("video_path", None)   # set if using uploaded video
 
-    session_id = create_session(batch_id, operator_id)
+    source_type  = "upload" if video_path else "live"
+    session_id   = create_session(batch_id, operator_id, source_type, video_path)
 
     # Load YOLO counter if model exists
     counter = None

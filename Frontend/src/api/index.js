@@ -7,6 +7,7 @@ export const getSession       = (id)  => api.get(`/sessions/${id}`)
 export const getSessionLogs   = (id)  => api.get(`/sessions/${id}/logs`)
 export const getOperatorStats = ()    => api.get('/stats/operators')
 export const getVideoUrl      = (id)  => `http://localhost:5000/sessions/${id}/video`
+export const getUploadUrl     = (id)  => `http://localhost:5000/sessions/${id}/upload`
 export const uploadVideo      = (file) => {
   const form = new FormData()
   form.append('video', file)
