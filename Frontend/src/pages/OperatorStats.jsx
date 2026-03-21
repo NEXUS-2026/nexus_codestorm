@@ -37,6 +37,7 @@ export default function OperatorStats() {
   }
   const [countdown, setCountdown] = useState(300)
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [])
 
   // Auto-refresh every 5 minutes
@@ -47,6 +48,7 @@ export default function OperatorStats() {
 
   // Countdown timer
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCountdown(300)
     const tick = setInterval(() => setCountdown(c => c <= 1 ? 300 : c - 1), 1000)
     return () => clearInterval(tick)
@@ -162,6 +164,7 @@ export default function OperatorStats() {
           { icon: Trophy,   label: 'Best Session',  value: kpis.best?.final_count ?? '—', sub: kpis.best?.batch_id ?? 'no data', color: '#fbbf24', bg: 'bg-amber-950',  border: 'border-amber-900' },
           { icon: User,     label: 'Top Operator',  value: kpis.topOp?._id ?? '—',       sub: kpis.topOp ? `${kpis.topOp.total_boxes} boxes` : 'no data', color: '#a78bfa', bg: 'bg-purple-950', border: 'border-purple-900' },
           { icon: Clock,    label: 'Avg Duration',  value: kpis.avgDurStr,               sub: 'per session',           color: '#34d399', bg: 'bg-green-950',  border: 'border-green-900' },
+        // eslint-disable-next-line no-unused-vars
         ].map(({ icon: Icon, label, value, sub, color, bg, border }) => (
           <div key={label} className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3.5 flex items-center gap-3 hover:border-gray-700 transition-colors">
             <div className={`w-9 h-9 shrink-0 ${bg} border ${border} rounded-xl flex items-center justify-center`}>
@@ -223,6 +226,7 @@ export default function OperatorStats() {
             {[
               { label: 'Live Camera',    count: sourceSplit.live,   icon: Camera, color: '#38bdf8', track: 'bg-sky-500' },
               { label: 'Uploaded Video', count: sourceSplit.upload, icon: Upload, color: '#a78bfa', track: 'bg-purple-500' },
+            // eslint-disable-next-line no-unused-vars
             ].map(({ label, count, icon: Icon, color, track }) => (
               <div key={label}>
                 <div className="flex items-center justify-between mb-1.5">

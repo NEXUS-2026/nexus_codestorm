@@ -142,6 +142,7 @@ function ChallanModal({ session, onClose }) {
   const [fileName, setFileName] = useState(defaultName)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true); setError(false)
     downloadChallan(session._id)
       .then(({ data }) => {
@@ -151,7 +152,7 @@ function ChallanModal({ session, onClose }) {
       .catch(() => setError(true))
       .finally(() => setLoading(false))
     return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl) }
-  }, [session._id])
+  }, [session._id, pdfUrl])
 
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose() }
@@ -365,6 +366,7 @@ function SessionDetailModal({ session, onClose, onChallan, onVideo }) {
 }
 
 // ── Stat Card ─────────────────────────────────────────────────
+// eslint-disable-next-line no-unused-vars
 function StatCard({ icon: Icon, label, value, sub, accent = 'sky' }) {
   const colors = {
     sky:    { bg: 'bg-sky-950',    border: 'border-sky-900',    icon: 'text-sky-400',    val: 'text-sky-400' },
@@ -415,7 +417,6 @@ export default function Sessions() {
   const [search, setSearch]                 = useState('')
   const [filterStatus, setFilterStatus]     = useState('all')
   const [filterSource, setFilterSource]     = useState('all')
-  const [challanLoading, setChallanLoading] = useState(null)  // kept for compat
   const [deleteId, setDeleteId]             = useState(null)
   const [deleting, setDeleting]             = useState(null)
   const [expandedId, setExpandedId]         = useState(null)
@@ -437,6 +438,7 @@ export default function Sessions() {
       .catch(() => setFetchError(true))
       .finally(() => setLoading(false))
   }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [])
 
   // Scroll highlighted card into view after sessions load
@@ -472,21 +474,6 @@ export default function Sessions() {
     if (!s.started_at || !s.ended_at) return null
     const secs = Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 1000)
     return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`
-  }
-
-  const handleChallan = async (id) => {
-    setChallanLoading(id)
-    try {
-      const { data } = await downloadChallan(id)
-      const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
-      const a = document.createElement('a')
-      a.href = url; a.download = `challan_${id}.pdf`; a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      alert('Failed to generate challan.')
-    } finally {
-      setChallanLoading(null)
-    }
   }
 
   const filtersActive = filterStatus !== 'all' || filterSource !== 'all' || search
