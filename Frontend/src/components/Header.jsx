@@ -183,6 +183,16 @@ export default function Header() {
                       
                       <div className="p-2">
                         <button
+                          onClick={() => {
+                            setShowUserMenu(false)
+                            navigate('/profile')
+                          }}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-800/80 rounded-lg transition-colors group mb-1"
+                        >
+                          <User size={16} className="group-hover:scale-110 transition-transform" />
+                          <span className="font-semibold">Profile Settings</span>
+                        </button>
+                        <button
                           onClick={handleLogout}
                           className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors group"
                         >

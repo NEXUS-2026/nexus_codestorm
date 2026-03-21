@@ -74,14 +74,7 @@ CORS(app,
          "max_age": 3600
      }})
 
-# Add after_request handler for additional CORS headers
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
+# CORS is already configured above, no need for after_request handler
 
 sock = Sock(app)
 
@@ -105,16 +98,26 @@ except Exception as e:
     print(f"[main] WARN: Could not load model: {e}")
     traceback.print_exc()
 
-# Batch ID: uppercase WORD-NUMBER, e.g. BATCH-001, WH-42
-BATCH_ID_RE = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
+# Batch ID: uppercase WORD-NUMBER with minimum 3 digits, e.g. BATCH-001, WH-001, BATCH-1111
+BATCH_ID_RE = re.compile(r"^[A-Z][A-Z0-9]*-\d{3,}$")
+# Operator ID: format OP-XXX with minimum 3 digits, e.g. OP-001, OP-1234
+OPERATOR_ID_RE = re.compile(r"^OP-\d{3,}$")
 
 def _validate_batch_id(batch_id: str):
     if not batch_id:
         return "Batch ID is required."
     if not BATCH_ID_RE.match(batch_id):
-        return "Batch ID must be uppercase in format WORD-NUMBER (e.g. BATCH-001)."
+        return "Batch ID must be uppercase in format WORD-XXX (e.g. BATCH-001, WH-001). Minimum 3 digits required."
     if batch_id_exists(batch_id):
         return f"Batch ID '{batch_id}' already exists. Use a unique batch ID."
+    return None
+
+def _validate_operator_id(operator_id: str):
+    if not operator_id:
+        return "Operator ID is required."
+    operator_id = operator_id.strip().upper()
+    if not OPERATOR_ID_RE.match(operator_id):
+        return "Operator ID must be in format OP-XXX (e.g. OP-001, OP-123). Minimum 3 digits required."
     return None
 
 
@@ -159,11 +162,14 @@ def signup():
         warehouse_location = data.get("warehouse_location", "").strip()
         contact_name = data.get("contact_name", "").strip()
         contact_phone = data.get("contact_phone", "").strip()
+        ms_name = data.get("ms_name", "").strip()
+        transporter_id = data.get("transporter_id", "").strip()
+        courier_partner = data.get("courier_partner", "").strip()
         
         print(f"[signup] Creating user: {email}")
         success, message, user_data = create_user(
             email, password, warehouse_name, warehouse_location,
-            contact_name, contact_phone
+            contact_name, contact_phone, ms_name, transporter_id, courier_partner
         )
         
         if success:
@@ -212,6 +218,128 @@ def login():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/profile", methods=["GET", "PUT", "OPTIONS"])
+def profile():
+    """Get or update current user's profile information"""
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+    
+    auth_error = require_auth()
+    if auth_error:
+        return auth_error
+    
+    user_id = get_current_user_id()
+    
+    # GET - Fetch profile
+    if request.method == "GET":
+        try:
+            user = get_user_by_id(user_id)
+            
+            if not user:
+                return jsonify({"error": "User not found"}), 404
+            
+            # Return user data without password
+            return jsonify({
+                "email": user.get("email"),
+                "warehouse_name": user.get("warehouse_name"),
+                "warehouse_location": user.get("warehouse_location"),
+                "contact_name": user.get("contact_name"),
+                "contact_phone": user.get("contact_phone"),
+                "ms_name": user.get("ms_name"),
+                "transporter_id": user.get("transporter_id"),
+                "courier_partner": user.get("courier_partner")
+            }), 200
+        except Exception as e:
+            print(f"[get_profile] Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": str(e)}), 500
+    
+    # PUT - Update profile
+    if request.method == "PUT":
+        try:
+            data = request.get_json() or {}
+            
+            # Fields that can be updated
+            update_fields = {}
+            
+            if "warehouse_name" in data:
+                warehouse_name = data["warehouse_name"].strip()
+                if not warehouse_name:
+                    return jsonify({"error": "Warehouse name cannot be empty"}), 400
+                update_fields["warehouse_name"] = warehouse_name
+            
+            if "warehouse_location" in data:
+                warehouse_location = data["warehouse_location"].strip()
+                if not warehouse_location:
+                    return jsonify({"error": "Warehouse location cannot be empty"}), 400
+                update_fields["warehouse_location"] = warehouse_location
+            
+            if "contact_name" in data:
+                contact_name = data["contact_name"].strip()
+                if not contact_name:
+                    return jsonify({"error": "Contact name cannot be empty"}), 400
+                update_fields["contact_name"] = contact_name
+            
+            if "contact_phone" in data:
+                update_fields["contact_phone"] = data["contact_phone"].strip()
+            
+            if "ms_name" in data:
+                ms_name = data["ms_name"].strip()
+                if not ms_name:
+                    return jsonify({"error": "M/S name cannot be empty"}), 400
+                update_fields["ms_name"] = ms_name
+            
+            if "transporter_id" in data:
+                transporter_id = data["transporter_id"].strip().upper()
+                if not transporter_id:
+                    return jsonify({"error": "Transporter ID cannot be empty"}), 400
+                update_fields["transporter_id"] = transporter_id
+            
+            if "courier_partner" in data:
+                courier_partner = data["courier_partner"].strip()
+                if not courier_partner:
+                    return jsonify({"error": "Courier partner cannot be empty"}), 400
+                update_fields["courier_partner"] = courier_partner
+            
+            if not update_fields:
+                return jsonify({"error": "No fields to update"}), 400
+            
+            # Update user in database
+            from database import db
+            from bson import ObjectId
+            
+            result = db.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": update_fields}
+            )
+            
+            if result.modified_count == 0:
+                return jsonify({"error": "No changes made"}), 400
+            
+            # Get updated user data
+            user = get_user_by_id(user_id)
+            
+            return jsonify({
+                "message": "Profile updated successfully",
+                "user": {
+                    "email": user.get("email"),
+                    "warehouse_name": user.get("warehouse_name"),
+                    "warehouse_location": user.get("warehouse_location"),
+                    "contact_name": user.get("contact_name"),
+                    "contact_phone": user.get("contact_phone"),
+                    "ms_name": user.get("ms_name"),
+                    "transporter_id": user.get("transporter_id"),
+                    "courier_partner": user.get("courier_partner")
+                }
+            }), 200
+        except Exception as e:
+            print(f"[update_profile] Error: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": str(e)}), 500
 
 
 @app.route("/auth/verify", methods=["GET", "OPTIONS"])
@@ -297,15 +425,33 @@ def validate_batch():
     data = request.get_json() or {}
     batch_id = (data.get("batch_id") or "").strip().upper()
     
-    if not batch_id:
-        return jsonify({"valid": False, "error": "Batch ID is required."}), 400
-    
-    if not BATCH_ID_RE.match(batch_id):
-        return jsonify({"valid": False, "error": "Batch ID must be uppercase in format WORD-NUMBER (e.g. BATCH-001)."}), 400
+    error = _validate_batch_id(batch_id)
+    if error:
+        return jsonify({"valid": False, "error": error}), 400
     
     # Check if batch_id exists for this user
     if batch_id_exists(batch_id, user_id):
         return jsonify({"valid": False, "error": f"Batch ID '{batch_id}' already exists. Use a unique batch ID."}), 400
+    
+    return jsonify({"valid": True})
+
+@app.route("/validate/operator", methods=["POST", "OPTIONS"])
+def validate_operator():
+    """Validate operator ID format only (operators can be reused across batches)."""
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 200
+    
+    data = request.get_json() or {}
+    operator_id = (data.get("operator_id") or "").strip().upper()
+    
+    error = _validate_operator_id(operator_id)
+    if error:
+        return jsonify({"valid": False, "error": error}), 400
     
     return jsonify({"valid": True})
 
@@ -368,7 +514,11 @@ def download_challan(session_id):
         return jsonify({"error": "Session not found"}), 404
     
     logs = get_logs_for_session(session_id)
-    pdf_path = generate_challan(session, logs)
+    
+    # Fetch user data for challan information
+    user_data = get_user_by_id(user_id) if user_id else None
+    
+    pdf_path = generate_challan(session, logs, user_data)
     return send_file(pdf_path, mimetype="application/pdf",
                      as_attachment=True,
                      download_name=os.path.basename(pdf_path))
@@ -456,7 +606,7 @@ def _mjpeg_stream(path):
 
 @app.route("/sessions/<session_id>/video")
 def session_video(session_id):
-    """Serve video for a session (user-scoped)."""
+    """Download video for a session (user-scoped)."""
     user_id = get_current_user_id()
     session = get_session(session_id, user_id)
     
@@ -467,7 +617,9 @@ def session_video(session_id):
     if not os.path.exists(path):
         return jsonify({"error": "Video file missing"}), 404
     
-    return serve_video(path)
+    # Serve as download
+    filename = f"session_{session_id}_{session.get('batch_id', 'video')}.mp4"
+    return send_file(path, mimetype="video/mp4", as_attachment=True, download_name=filename)
 
 @app.route("/sessions/<session_id>/video/stream")
 def session_video_stream(session_id):
@@ -517,6 +669,63 @@ def session_upload_stream(session_id):
 
 
 # ── WebSocket — live stream ───────────────────────────────────
+# Global control variables
+is_paused = False
+confidence_threshold = 0.35
+
+@app.route("/control/pause", methods=["POST", "OPTIONS"])
+def control_pause():
+    """Toggle pause state for the active session."""
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 200
+    
+    global is_paused
+    is_paused = not is_paused
+    return jsonify({"paused": is_paused})
+
+@app.route("/control/reset", methods=["POST", "OPTIONS"])
+def control_reset():
+    """Reset the video to frame 0 and clear count history."""
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 200
+    
+    global is_paused
+    is_paused = False
+    # Note: The actual reset logic (cap.set, counter reset) happens in the WebSocket handler
+    # This endpoint just signals the reset and returns success
+    return jsonify({"reset": True})
+
+@app.route("/settings/confidence", methods=["POST", "OPTIONS"])
+def settings_confidence():
+    """Update the confidence threshold for YOLO detection."""
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 200
+    
+    global confidence_threshold
+    data = request.get_json() or {}
+    value = data.get("value", 0.35)
+    try:
+        confidence_threshold = max(0.0, min(1.0, float(value)))
+        print(f"[API] Confidence threshold updated to: {confidence_threshold:.2f}")
+        return jsonify({"confidence": confidence_threshold})
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid confidence value"}), 400
+
 @sock.route("/ws/stream")
 def websocket_stream(ws):
     try:
@@ -529,19 +738,22 @@ def websocket_stream(ws):
         return
 
     batch_id     = (init.get("batch_id") or "").strip().upper()
-    operator_id  = (init.get("operator_id") or "").strip()
+    operator_id  = (init.get("operator_id") or "").strip().upper()
     camera_index = int(init.get("camera_index", 0))
     video_path   = init.get("video_path", None)
     confidence   = float(init.get("confidence", 0.35))  # Default 35% if not provided
     user_id      = init.get("user_id", None)  # Get user_id from WebSocket init message
 
     # Validate batch_id format
-    if not batch_id:
-        ws.send(json.dumps({"error": "Batch ID is required."}))
+    batch_error = _validate_batch_id(batch_id)
+    if batch_error:
+        ws.send(json.dumps({"error": batch_error}))
         return
     
-    if not BATCH_ID_RE.match(batch_id):
-        ws.send(json.dumps({"error": "Batch ID must be uppercase in format WORD-NUMBER (e.g. BATCH-001)."}))
+    # Validate operator_id format
+    operator_error = _validate_operator_id(operator_id)
+    if operator_error:
+        ws.send(json.dumps({"error": operator_error}))
         return
     
     # Check if batch_id already exists for this user
@@ -579,9 +791,38 @@ def websocket_stream(ws):
     frame_num = 0
     count     = 0
     max_count = 0  # Track maximum count reached during session
+    last_frame = None  # Store last frame for pause state
+    last_count = 0  # Store last count for pause state
 
     try:
         while ws.connected:
+            # Check for control messages from client (non-blocking)
+            global is_paused, confidence_threshold
+            
+            # Update counter confidence if it changed
+            if counter and hasattr(counter, '_confidence_threshold'):
+                if abs(counter._confidence_threshold - confidence_threshold) > 0.01:
+                    print(f"[WS] Updating counter confidence from {counter._confidence_threshold:.2f} to {confidence_threshold:.2f}")
+                    counter.set_confidence(confidence_threshold)
+            
+            if is_paused:
+                # When paused, keep sending the last known frame and count
+                if last_frame is not None:
+                    _, buf = cv2.imencode(".jpg", last_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                    try:
+                        ws.send(json.dumps({
+                            "frame": base64.b64encode(buf).decode(),
+                            "count": last_count,
+                            "session_active": True,
+                            "session_id": session_id,
+                            "paused": True,
+                        }))
+                    except Exception:
+                        break
+                import time
+                time.sleep(0.1)  # Reduce CPU usage while paused
+                continue
+            
             ret, frame = cap.read()
             if not ret:
                 break
@@ -600,6 +841,10 @@ def websocket_stream(ws):
                 cv2.putText(frame, "No model loaded", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
+            # Store last frame and count for pause state
+            last_frame = frame.copy()
+            last_count = count
+            
             recorder.write(frame)
 
             if not ws.connected:

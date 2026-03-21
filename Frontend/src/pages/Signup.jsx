@@ -12,7 +12,10 @@ export default function Signup() {
     warehouse_name: '',
     warehouse_location: '',
     contact_name: '',
-    contact_phone: ''
+    contact_phone: '',
+    ms_name: '',
+    transporter_id: '',
+    courier_partner: ''
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -82,7 +85,10 @@ export default function Signup() {
         warehouse_name: formData.warehouse_name,
         warehouse_location: formData.warehouse_location,
         contact_name: formData.contact_name,
-        contact_phone: formData.contact_phone
+        contact_phone: formData.contact_phone,
+        ms_name: formData.ms_name,
+        transporter_id: formData.transporter_id,
+        courier_partner: formData.courier_partner
       })
       
       if (data.success) {
@@ -281,6 +287,59 @@ export default function Signup() {
                   placeholder="+1 (555) 000-0000"
                   className="w-full bg-gray-950/80 border border-gray-800 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 rounded-2xl px-5 py-3.5 text-sm text-gray-100 outline-none transition-all duration-300 placeholder:text-gray-700 shadow-inner"
                   value={formData.contact_phone}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Challan Information */}
+          <div className="space-y-6 pt-6 border-t border-gray-800/50">
+            <h3 className="text-[11px] text-sky-400 font-bold tracking-widest uppercase">Challan Information</h3>
+            <p className="text-xs text-gray-500">This information will be automatically included in all generated challans</p>
+            
+            <div className="flex flex-col gap-2 group">
+              <label className="text-[11px] text-gray-400 font-bold tracking-widest uppercase flex items-center gap-2 transition-colors group-focus-within:text-sky-400">
+                <Building size={13} className="text-gray-500 group-focus-within:text-sky-400 transition-colors" /> M/S (Messrs/Company Name)
+              </label>
+              <input
+                type="text"
+                name="ms_name"
+                required
+                placeholder="e.g. ABC Logistics Pvt. Ltd."
+                className="w-full bg-gray-950/80 border border-gray-800 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 rounded-2xl px-5 py-3.5 text-sm text-gray-100 outline-none transition-all duration-300 placeholder:text-gray-700 shadow-inner"
+                value={formData.ms_name}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2 group">
+                <label className="text-[11px] text-gray-400 font-bold tracking-widest uppercase flex items-center gap-2 transition-colors group-focus-within:text-sky-400">
+                  <Package size={13} className="text-gray-500 group-focus-within:text-sky-400 transition-colors" /> Transporter ID
+                </label>
+                <input
+                  type="text"
+                  name="transporter_id"
+                  required
+                  placeholder="e.g. TR-12345"
+                  className="w-full bg-gray-950/80 border border-gray-800 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 rounded-2xl px-5 py-3.5 text-sm text-gray-100 outline-none transition-all duration-300 placeholder:text-gray-700 shadow-inner uppercase"
+                  value={formData.transporter_id}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div className="flex flex-col gap-2 group">
+                <label className="text-[11px] text-gray-400 font-bold tracking-widest uppercase flex items-center gap-2 transition-colors group-focus-within:text-sky-400">
+                  <Package size={13} className="text-gray-500 group-focus-within:text-sky-400 transition-colors" /> Courier Partner
+                </label>
+                <input
+                  type="text"
+                  name="courier_partner"
+                  required
+                  placeholder="e.g. FedEx, DHL, Blue Dart"
+                  className="w-full bg-gray-950/80 border border-gray-800 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 rounded-2xl px-5 py-3.5 text-sm text-gray-100 outline-none transition-all duration-300 placeholder:text-gray-700 shadow-inner"
+                  value={formData.courier_partner}
                   onChange={handleChange}
                 />
               </div>

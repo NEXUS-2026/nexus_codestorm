@@ -707,12 +707,20 @@ export default function Sessions() {
                         </Tooltip>
                       )}
                       {s.video_path ? (
-                        <Tooltip label="Watch session recording">
-                          <button onClick={() => setModal({ session: s, type: 'recording' })}
-                            className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-2.5 py-1.5 rounded-xl transition-colors font-medium">
-                            <Play size={11} fill="white" /> Recording
-                          </button>
-                        </Tooltip>
+                        <>
+                          <Tooltip label="Watch session recording">
+                            <button onClick={() => setModal({ session: s, type: 'recording' })}
+                              className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-2.5 py-1.5 rounded-xl transition-colors font-medium">
+                              <Play size={11} fill="white" /> Recording
+                            </button>
+                          </Tooltip>
+                          <Tooltip label="Download video file">
+                            <button onClick={() => window.open(`http://localhost:5000/sessions/${s._id}/video`, '_blank')}
+                              className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-teal-700 border border-teal-600 text-teal-400 hover:text-white px-2.5 py-1.5 rounded-xl transition-colors font-medium">
+                              <Download size={11} /> Video
+                            </button>
+                          </Tooltip>
+                        </>
                       ) : (
                         <span className="text-xs text-gray-700">No recording</span>
                       )}

@@ -10,6 +10,7 @@ const Signup        = lazy(() => import('./pages/Signup'))
 const Dashboard     = lazy(() => import('./pages/Dashboard'))
 const Sessions      = lazy(() => import('./pages/Sessions'))
 const OperatorStats = lazy(() => import('./pages/OperatorStats'))
+const Profile       = lazy(() => import('./pages/Profile'))
 
 function PageLoader() {
   return (
@@ -50,6 +51,7 @@ function AppContent() {
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/sessions" element={<ProtectedRoute><Sessions /></ProtectedRoute>} />
             <Route path="/stats"    element={<ProtectedRoute><OperatorStats /></ProtectedRoute>} />
+            <Route path="/profile"  element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           </Routes>
         </Suspense>
       </div>

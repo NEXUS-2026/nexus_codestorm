@@ -439,7 +439,7 @@ export default function OperatorStats() {
       </FadeUp>
 
       {/* ── KPI row ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {[
           { icon: Box,      label: 'Total Boxes',   value: kpis.totalBoxes,              sub: 'all time',              color: '#38bdf8', bg: 'bg-sky-950',    border: 'border-sky-900', tip: 'Total boxes across all completed sessions' },
           { icon: Trophy,   label: 'Best Session',  value: kpis.best?.final_count ?? '—', sub: kpis.best?.batch_id ?? 'no data', color: '#fbbf24', bg: 'bg-amber-950',  border: 'border-amber-900', tip: 'Highest box count in a single session' },
@@ -449,14 +449,14 @@ export default function OperatorStats() {
         ].map(({ icon: Icon, label, value, sub, color, bg, border, tip }, idx) => (
           <ScalePop key={label} delay={idx * 0.06}>
             <Tooltip label={tip}>
-              <div className="bg-gray-900 border border-gray-800 rounded-xl px-3 py-3 flex items-center gap-2.5 hover:border-gray-700 transition-colors cursor-default">
-                <div className={`w-9 h-9 shrink-0 ${bg} border ${border} rounded-lg flex items-center justify-center`}>
-                  <Icon size={15} style={{ color }} />
+              <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800 hover:border-gray-700 rounded-2xl p-4 flex items-center gap-3.5 h-full transition-all duration-300 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 cursor-pointer group">
+                <div className={`w-10 h-10 shrink-0 ${bg} border ${border} rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110`}>
+                  <Icon size={16} style={{ color }} />
                 </div>
-                <div className="min-w-0">
-                  <p className="text-lg font-black tabular-nums truncate leading-none" style={{ color }}>{value}</p>
-                  <p className="text-xs font-semibold text-white mt-0.5 leading-none">{label}</p>
-                  <p className="text-xs text-gray-600 mt-0.5 truncate">{sub}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-2xl font-black tabular-nums leading-none mb-1" style={{ color }}>{value}</p>
+                  <p className="text-xs font-bold text-white leading-none mb-1">{label}</p>
+                  <p className="text-[10px] text-gray-500 truncate">{sub}</p>
                 </div>
               </div>
             </Tooltip>
