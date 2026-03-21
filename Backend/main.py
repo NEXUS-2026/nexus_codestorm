@@ -146,7 +146,7 @@ def upload_video():
 # ── Video serving with range support ─────────────────────────
 def serve_video(path):
     ext = os.path.splitext(path)[1].lower().lstrip(".")
-    mimetype = {"mp4": "video/mp4", "avi": "video/avi"}.get(ext, "video/octet-stream")
+    mimetype = {"mp4": "video/mp4", "avi": "video/x-msvideo"}.get(ext, "video/octet-stream")
     file_size = os.path.getsize(path)
     range_header = request.headers.get("Range")
 
@@ -170,6 +170,39 @@ def serve_video(path):
     return resp
 
 
+def _mjpeg_stream(path):
+    """Stream any video file as MJPEG — works in all browsers regardless of codec.
+    Accepts ?speed=0.5|1|1.5|2 query param to control playback rate."""
+    try:
+        speed = float(request.args.get("speed", 1))
+        speed = max(0.25, min(speed, 4.0))  # clamp to sane range
+    except (ValueError, TypeError):
+        speed = 1.0
+
+    def generate():
+        cap = cv2.VideoCapture(path)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 10
+        # delay between frames in seconds, adjusted by speed
+        delay = 1.0 / (fps * speed)
+        import time
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" +
+                    buf.tobytes() +
+                    b"\r\n"
+                )
+                time.sleep(delay)
+        finally:
+            cap.release()
+    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
 @app.route("/sessions/<session_id>/video")
 def session_video(session_id):
     session = get_session(session_id)
@@ -179,6 +212,16 @@ def session_video(session_id):
     if not os.path.exists(path):
         return jsonify({"error": "Video file missing"}), 404
     return serve_video(path)
+
+@app.route("/sessions/<session_id>/video/stream")
+def session_video_stream(session_id):
+    session = get_session(session_id)
+    if not session or not session.get("video_path"):
+        return jsonify({"error": "Video not found"}), 404
+    path = session["video_path"]
+    if not os.path.exists(path):
+        return jsonify({"error": "Video file missing"}), 404
+    return _mjpeg_stream(path)
 
 
 @app.route("/sessions/<session_id>/upload")
@@ -190,6 +233,16 @@ def session_upload(session_id):
     if not os.path.exists(path):
         return jsonify({"error": "Uploaded file missing"}), 404
     return serve_video(path)
+
+@app.route("/sessions/<session_id>/upload/stream")
+def session_upload_stream(session_id):
+    session = get_session(session_id)
+    if not session or not session.get("upload_path"):
+        return jsonify({"error": "No uploaded file for this session"}), 404
+    path = session["upload_path"]
+    if not os.path.exists(path):
+        return jsonify({"error": "Uploaded file missing"}), 404
+    return _mjpeg_stream(path)
 
 
 # ── WebSocket — live stream ───────────────────────────────────

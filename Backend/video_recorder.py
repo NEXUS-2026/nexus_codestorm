@@ -8,9 +8,9 @@ os.makedirs(RECORDINGS_DIR, exist_ok=True)
 # Codec priority: MJPEG in AVI is universally browser-playable
 # mp4v in mp4 is a fallback (may need download on some browsers)
 CODEC_OPTIONS = [
-    ("MJPG", ".avi"),   # Motion JPEG — Chrome/Firefox play natively
+    ("avc1", ".mp4"),   # H.264 in MP4 — best browser support
     ("mp4v", ".mp4"),   # MPEG-4 Part 2 — fallback
-    ("XVID", ".avi"),   # XVID — last resort
+    ("MJPG", ".avi"),   # Motion JPEG AVI — last resort
 ]
 
 

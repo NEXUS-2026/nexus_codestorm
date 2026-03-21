@@ -11,8 +11,22 @@ import {
 
 // ── Video Modal ───────────────────────────────────────────────
 function VideoModal({ session, type, onClose }) {
-  const videoRef = useRef(null)
-  const src = type === 'upload' ? getUploadUrl(session._id) : getVideoUrl(session._id)
+  const [speed, setSpeed] = useState(1)
+  const [activeSrc, setActiveSrc] = useState(
+    type === 'upload' ? getUploadUrl(session._id, 1) : getVideoUrl(session._id, 1)
+  )
+
+  const changeSpeed = (s) => {
+    // Briefly null out src to force browser to close the MJPEG connection,
+    // then set the new URL — otherwise the stream keeps running at old speed
+    setActiveSrc(null)
+    setSpeed(s)
+    setTimeout(() => {
+      const newSrc = type === 'upload' ? getUploadUrl(session._id, s) : getVideoUrl(session._id, s)
+      setActiveSrc(newSrc)
+    }, 80)
+  }
+
   const onBackdrop = (e) => { if (e.target === e.currentTarget) onClose() }
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose() }
@@ -20,10 +34,14 @@ function VideoModal({ session, type, onClose }) {
     return () => window.removeEventListener('keydown', h)
   }, [onClose])
 
+  const SPEEDS = [0.5, 1, 1.5, 2]
+
   return (
     <div onClick={onBackdrop}
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden">
+
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-sky-950 border border-sky-800 rounded-lg flex items-center justify-center">
@@ -41,22 +59,33 @@ function VideoModal({ session, type, onClose }) {
             <X size={14} />
           </button>
         </div>
-        <div className="bg-black relative">
-          <video ref={videoRef} src={src} controls autoPlay className="w-full max-h-[60vh]"
-            onError={(e) => {
-              e.target.style.display = 'none'
-              e.target.nextSibling.style.display = 'flex'
-            }} />
+
+        {/* MJPEG stream */}
+        <div className="bg-black flex items-center justify-center" style={{ minHeight: '360px' }}>
+          {activeSrc ? (
+            <img
+              key={activeSrc}
+              src={activeSrc}
+              alt="Session playback"
+              className="w-full max-h-[60vh] object-contain"
+              onError={(e) => {
+                e.target.style.display = 'none'
+                e.target.nextSibling?.style && (e.target.nextSibling.style.display = 'flex')
+              }}
+            />
+          ) : (
+            <div className="flex items-center justify-center py-16">
+              <span className="w-6 h-6 border-2 border-gray-700 border-t-sky-500 rounded-full animate-spin" />
+            </div>
+          )}
           <div className="hidden items-center justify-center py-16 flex-col gap-3 text-gray-500">
             <Film size={32} />
-            <p className="text-sm">Browser cannot play this format.</p>
-            <p className="text-xs text-gray-600">The recording uses mp4v codec. New sessions will use MJPEG which plays in-browser.</p>
-            <a href={src} download
-              className="text-xs bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-lg transition-colors">
-              Download to watch
-            </a>
+            <p className="text-sm">Could not load video stream.</p>
+            <p className="text-xs text-gray-600">Make sure the backend is running on port 5000.</p>
           </div>
         </div>
+
+        {/* Footer: meta + speed controls */}
         <div className="px-5 py-3 flex items-center gap-4 text-xs text-gray-500 border-t border-gray-800">
           <span className="flex items-center gap-1.5">
             <Box size={11} className="text-sky-400" />
@@ -68,7 +97,28 @@ function VideoModal({ session, type, onClose }) {
               ? new Date(session.started_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
               : '—'}
           </span>
-          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ml-auto ${
+
+          {/* Speed selector */}
+          <div className="ml-auto flex items-center gap-1.5">
+            <span className="text-gray-600 text-xs">Speed</span>
+            <div className="flex items-center gap-0.5 bg-gray-800 border border-gray-700 rounded-lg p-0.5">
+              {SPEEDS.map(s => (
+                <button
+                  key={s}
+                  onClick={() => changeSpeed(s)}
+                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    speed === s
+                      ? 'bg-sky-600 text-white'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {s}x
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full font-medium ${
             session.source_type === 'upload'
               ? 'bg-purple-950 text-purple-400 border border-purple-800'
               : 'bg-sky-950 text-sky-400 border border-sky-800'
