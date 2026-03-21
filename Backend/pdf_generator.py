@@ -56,7 +56,7 @@ def generate_challan(session, logs, user_data=None):
     
     c = canvas.Canvas(output_path, pagesize=A4)
     c.setTitle(f"BoxGuard Challan - {batch_id}")
-    c.setAuthor("BoxGuard Warehouse Systems")
+    c.setAuthor("BoxGuard Systems")
     
     y = H - M
     
@@ -65,7 +65,7 @@ def generate_challan(session, logs, user_data=None):
     # ═══════════════════════════════════════════════════════════
     c.setFillColor(BRAND_GREEN)
     c.setFont("Helvetica-Bold", 20)
-    c.drawCentredString(W / 2, y, "BoxGuard Warehouse Systems")
+    c.drawCentredString(W / 2, y, "BoxGuard Systems")
     
     y -= 0.6 * cm
     c.setFillColor(TEXT_DARK)

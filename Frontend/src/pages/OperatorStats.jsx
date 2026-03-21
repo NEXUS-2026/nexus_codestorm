@@ -207,7 +207,7 @@ export default function OperatorStats() {
     // Header
     doc.setFontSize(22)
     doc.setTextColor(14, 165, 233)
-    doc.text('WAREgaurd Complete Analytics Report', pageWidth / 2, 20, { align: 'center' })
+    doc.text('BoxGuard Complete Analytics Report', pageWidth / 2, 20, { align: 'center' })
     
     doc.setFontSize(10)
     doc.setTextColor(100, 100, 100)
@@ -381,14 +381,14 @@ export default function OperatorStats() {
       doc.setFontSize(8)
       doc.setTextColor(150, 150, 150)
       doc.text(
-        `Page ${i} of ${pageCount} | WAREgaurd Analytics © ${new Date().getFullYear()}`,
+        `Page ${i} of ${pageCount} | BoxGuard Analytics © ${new Date().getFullYear()}`,
         pageWidth / 2,
         doc.internal.pageSize.getHeight() - 10,
         { align: 'center' }
       )
     }
     
-    const filename = `waregaurd_complete_stats_${new Date().toISOString().split('T')[0]}.pdf`
+    const filename = `boxguard_complete_stats_${new Date().toISOString().split('T')[0]}.pdf`
     doc.save(filename)
   }
 

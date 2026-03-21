@@ -1,8 +1,9 @@
 {
-  "name": "frontend",
+  "name": "boxguard-frontend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "BoxGuard - AI-powered warehouse automation frontend",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

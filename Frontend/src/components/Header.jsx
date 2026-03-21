@@ -67,9 +67,9 @@ export default function Header() {
             </div>
             <span className="text-xl font-black hidden sm:block">
               <span className="bg-gradient-to-r from-sky-400 to-purple-500 bg-clip-text text-transparent">
-                WARE
+                Box
               </span>
-              <span className="text-white">gaurd</span>
+              <span className="text-white">Guard</span>
             </span>
           </motion.button>
 
