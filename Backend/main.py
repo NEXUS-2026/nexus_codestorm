@@ -33,18 +33,21 @@ UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Load YOLO model once at startup
+print(f"[main] MODEL_PATH resolved to: {MODEL_PATH}")
+print(f"[main] File exists: {os.path.exists(MODEL_PATH)}")
 try:
     _counter = BoxCounter(MODEL_PATH)
     print("[main] YOLO model loaded successfully")
 except Exception as e:
+    import traceback
     _counter = None
     print(f"[main] WARN: Could not load model: {e}")
+    traceback.print_exc()
 
-# Batch ID must be UPPERCASE WORD(S)-NUMBER, e.g. BATCH-001, WH-42, PACK-999
-BATCH_ID_RE = re.compile(r'^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*-\d+$')
+# Batch ID: uppercase WORD-NUMBER, e.g. BATCH-001, WH-42
+BATCH_ID_RE = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
 
 def _validate_batch_id(batch_id: str):
-    """Returns error string or None if valid."""
     if not batch_id:
         return "Batch ID is required."
     if not BATCH_ID_RE.match(batch_id):
@@ -64,7 +67,7 @@ def health():
     return jsonify({"status": "ok"})
 
 
-# ── Batch ID validation endpoint ──────────────────────────────
+# ── Batch ID validation ───────────────────────────────────────
 @app.route("/validate/batch", methods=["POST"])
 def validate_batch():
     data = request.get_json() or {}
@@ -127,7 +130,7 @@ def operator_stats():
     return jsonify(get_operator_stats())
 
 
-# ── Upload video for processing ───────────────────────────────
+# ── Upload video ──────────────────────────────────────────────
 @app.route("/upload", methods=["POST"])
 def upload_video():
     if "video" not in request.files:
@@ -142,8 +145,8 @@ def upload_video():
 
 # ── Video serving with range support ─────────────────────────
 def serve_video(path):
-    ext = os.path.splitext(path)[1].lower()
-    mimetype = {"mp4": "video/mp4", "avi": "video/avi"}.get(ext.lstrip("."), "video/octet-stream")
+    ext = os.path.splitext(path)[1].lower().lstrip(".")
+    mimetype = {"mp4": "video/mp4", "avi": "video/avi"}.get(ext, "video/octet-stream")
     file_size = os.path.getsize(path)
     range_header = request.headers.get("Range")
 
@@ -206,7 +209,6 @@ def websocket_stream(ws):
     camera_index = int(init.get("camera_index", 0))
     video_path   = init.get("video_path", None)
 
-    # Validate batch ID before creating session
     err = _validate_batch_id(batch_id)
     if err:
         ws.send(json.dumps({"error": err}))

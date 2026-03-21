@@ -5,7 +5,7 @@ import { useSession } from '../context/SessionContext'
 import { getSessions, uploadVideo } from '../api'
 import axios from 'axios'
 
-const BATCH_RE = /^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*-\d+$/
+const BATCH_RE = /^[A-Z][A-Z0-9]*-\d+$/
 
 export default function Dashboard() {
   const navigate = useNavigate()
