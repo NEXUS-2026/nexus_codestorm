@@ -33,18 +33,21 @@ UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Load YOLO model once at startup
+print(f"[main] MODEL_PATH resolved to: {MODEL_PATH}")
+print(f"[main] File exists: {os.path.exists(MODEL_PATH)}")
 try:
     _counter = BoxCounter(MODEL_PATH)
     print("[main] YOLO model loaded successfully")
 except Exception as e:
+    import traceback
     _counter = None
     print(f"[main] WARN: Could not load model: {e}")
+    traceback.print_exc()
 
-# Batch ID must be UPPERCASE WORD(S)-NUMBER, e.g. BATCH-001, WH-42, PACK-999
-BATCH_ID_RE = re.compile(r'^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*-\d+$')
+# Batch ID: uppercase WORD-NUMBER, e.g. BATCH-001, WH-42
+BATCH_ID_RE = re.compile(r"^[A-Z][A-Z0-9]*-\d+$")
 
 def _validate_batch_id(batch_id: str):
-    """Returns error string or None if valid."""
     if not batch_id:
         return "Batch ID is required."
     if not BATCH_ID_RE.match(batch_id):
@@ -64,7 +67,7 @@ def health():
     return jsonify({"status": "ok"})
 
 
-# ── Batch ID validation endpoint ──────────────────────────────
+# ── Batch ID validation ───────────────────────────────────────
 @app.route("/validate/batch", methods=["POST"])
 def validate_batch():
     data = request.get_json() or {}
@@ -127,7 +130,7 @@ def operator_stats():
     return jsonify(get_operator_stats())
 
 
-# ── Upload video for processing ───────────────────────────────
+# ── Upload video ──────────────────────────────────────────────
 @app.route("/upload", methods=["POST"])
 def upload_video():
     if "video" not in request.files:
@@ -142,8 +145,8 @@ def upload_video():
 
 # ── Video serving with range support ─────────────────────────
 def serve_video(path):
-    ext = os.path.splitext(path)[1].lower()
-    mimetype = {"mp4": "video/mp4", "avi": "video/avi"}.get(ext.lstrip("."), "video/octet-stream")
+    ext = os.path.splitext(path)[1].lower().lstrip(".")
+    mimetype = {"mp4": "video/mp4", "avi": "video/x-msvideo"}.get(ext, "video/octet-stream")
     file_size = os.path.getsize(path)
     range_header = request.headers.get("Range")
 
@@ -167,6 +170,39 @@ def serve_video(path):
     return resp
 
 
+def _mjpeg_stream(path):
+    """Stream any video file as MJPEG — works in all browsers regardless of codec.
+    Accepts ?speed=0.5|1|1.5|2 query param to control playback rate."""
+    try:
+        speed = float(request.args.get("speed", 1))
+        speed = max(0.25, min(speed, 4.0))  # clamp to sane range
+    except (ValueError, TypeError):
+        speed = 1.0
+
+    def generate():
+        cap = cv2.VideoCapture(path)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 10
+        # delay between frames in seconds, adjusted by speed
+        delay = 1.0 / (fps * speed)
+        import time
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" +
+                    buf.tobytes() +
+                    b"\r\n"
+                )
+                time.sleep(delay)
+        finally:
+            cap.release()
+    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
 @app.route("/sessions/<session_id>/video")
 def session_video(session_id):
     session = get_session(session_id)
@@ -176,6 +212,16 @@ def session_video(session_id):
     if not os.path.exists(path):
         return jsonify({"error": "Video file missing"}), 404
     return serve_video(path)
+
+@app.route("/sessions/<session_id>/video/stream")
+def session_video_stream(session_id):
+    session = get_session(session_id)
+    if not session or not session.get("video_path"):
+        return jsonify({"error": "Video not found"}), 404
+    path = session["video_path"]
+    if not os.path.exists(path):
+        return jsonify({"error": "Video file missing"}), 404
+    return _mjpeg_stream(path)
 
 
 @app.route("/sessions/<session_id>/upload")
@@ -187,6 +233,16 @@ def session_upload(session_id):
     if not os.path.exists(path):
         return jsonify({"error": "Uploaded file missing"}), 404
     return serve_video(path)
+
+@app.route("/sessions/<session_id>/upload/stream")
+def session_upload_stream(session_id):
+    session = get_session(session_id)
+    if not session or not session.get("upload_path"):
+        return jsonify({"error": "No uploaded file for this session"}), 404
+    path = session["upload_path"]
+    if not os.path.exists(path):
+        return jsonify({"error": "Uploaded file missing"}), 404
+    return _mjpeg_stream(path)
 
 
 # ── WebSocket — live stream ───────────────────────────────────
@@ -206,7 +262,6 @@ def websocket_stream(ws):
     camera_index = int(init.get("camera_index", 0))
     video_path   = init.get("video_path", None)
 
-    # Validate batch ID before creating session
     err = _validate_batch_id(batch_id)
     if err:
         ws.send(json.dumps({"error": err}))
