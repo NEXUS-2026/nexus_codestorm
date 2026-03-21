@@ -1,4 +1,5 @@
 import os
+import cv2
 import torch
 
 model_path = os.getenv("MODEL_PATH", "bov_detection.pt")
@@ -14,9 +15,17 @@ def detect_boxes(frame, confidence_threshold):
     if model is None:
         return []
     
-    model.conf = confidence_threshold
+    resized = cv2.resize(frame, (640, 640))
     
-    results = model(frame)
+    model.conf = confidence_threshold
+    model.iou = 0.3  # ADD THIS — lower IOU means more overlapping boxes get kept
+    model.agnostic = True  # ADD THIS — treats all detections as same class
+    
+    results = model(resized)
+    # Scale boxes back to original frame size
+    h, w = frame.shape[:2]
+    x_scale = w / 640
+    y_scale = h / 640
     boxes = []
     
     for *xyxy, conf, cls in results.xyxy[0].tolist():
