@@ -98,24 +98,38 @@ def detect():
 
 def generate_frames():
     video_source = os.getenv("VIDEO_SOURCE", "0")
-    if video_source.isdigit():
+    if str(video_source).isdigit():
         video_source = int(video_source)
         
     cap = cv2.VideoCapture(video_source)
+    cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)      # disable autofocus
+    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # disable auto exposure
+    cap.set(cv2.CAP_PROP_FPS, 30)           # lock to 30fps
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)  # lock resolution
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     
-    # FIXED: check if camera opened successfully
     if not cap.isOpened():
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + b'\r\n')
         return
-        
+
+    frame_index = 0
+    last_boxes = []
+    last_objects = {}
+    last_count = 0
+    
     while True:
         success, frame = cap.read()
         if not success:
             break
-            
-        boxes, objects, box_count = process_frame(frame)
-        annotated_frame = draw_overlay(frame, objects, box_count, roi_polygon)
+        
+        frame_index += 1
+        
+        # Run detection every other frame only
+        if frame_index % 2 == 0:
+            last_boxes, last_objects, last_count = process_frame(frame)
+        
+        annotated_frame = draw_overlay(frame, last_objects, last_count, roi_polygon)
         jpeg_bytes = encode_frame_to_jpeg(annotated_frame)
         
         yield (b'--frame\r\n'

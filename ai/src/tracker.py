@@ -5,7 +5,7 @@ from collections import deque
 from src.utils import get_centroid
 
 class CentroidTracker:
-    def __init__(self, max_disappeared=10, max_distance=60):
+    def __init__(self, max_disappeared=20, max_distance=80):
         self.next_object_id = 0
         self.objects = {}
         self.disappeared = {}
@@ -13,7 +13,7 @@ class CentroidTracker:
         self.max_disappeared = max_disappeared
         self.max_distance = max_distance
         
-        self.count_history = deque(maxlen=7)
+        self.count_history = deque(maxlen=15)
 
     def register(self, centroid):
         self.objects[self.next_object_id] = centroid
