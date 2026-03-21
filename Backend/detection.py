@@ -89,6 +89,17 @@ class BoxCounter:
         self._boxes  = []
         self._confs  = []
         self._labels = []
+        self._confidence_threshold = CONF_THRESHOLD  # Store current threshold
+
+    def set_confidence(self, confidence: float):
+        """Update the confidence threshold dynamically"""
+        self._confidence_threshold = max(0.0, min(1.0, confidence))  # Clamp between 0 and 1
+        print(f"[BoxCounter] Confidence threshold updated to: {self._confidence_threshold:.2f}")
+        
+        # Update model confidence if it's loaded
+        if self.model and self._yolo_version == 5:
+            self.model.conf = self._confidence_threshold
+        # For YOLOv8, confidence is passed per inference call
 
     def _load_v5(self, model_path: str):
         import torch
@@ -135,7 +146,7 @@ class BoxCounter:
 
         boxes, confs, labels = [], [], []
         for *xyxy, conf, cls in preds.tolist():
-            if conf < CONF_THRESHOLD:
+            if conf < self._confidence_threshold:
                 continue
             x1, y1, x2, y2 = map(int, xyxy)
             boxes.append((x1, y1, x2, y2))
@@ -151,8 +162,8 @@ class BoxCounter:
         return len(boxes), confs
 
     def _process_v8(self, frame: np.ndarray) -> tuple:
-        # Pass iou explicitly to YOLOv8 inference
-        results = self.model(frame, verbose=False, conf=CONF_THRESHOLD, iou=NMS_IOU)[0]
+        # Pass iou explicitly to YOLOv8 inference with dynamic confidence
+        results = self.model(frame, verbose=False, conf=self._confidence_threshold, iou=NMS_IOU)[0]
         boxes, confs, labels = [], [], []
 
         if results.boxes is not None:

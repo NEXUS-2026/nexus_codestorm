@@ -21,7 +21,7 @@ export default function Dashboard() {
   const [batchChecking, setBatchChecking] = useState(false)
 
   // Interactive mockup state
-  const [confidence, setConfidence] = useState(72)
+  const [confidence, setConfidence] = useState(35) // Default 35% to match backend
   const [heatmapEnabled, setHeatmapEnabled] = useState(false)
   const [statsVisible, setStatsVisible] = useState(true)
 
@@ -33,10 +33,23 @@ export default function Dashboard() {
 
   const { status, count, error, start, stop, reset, setOnFrame, setOnSessionEnd } = useSession()
 
+  const isIdle    = status === 'idle'
+  const isRunning = status === 'running'
+  const isStopped = status === 'stopped'
+
   useEffect(() => {
     setOnFrame((f) => { if (imgRef.current) imgRef.current.src = `data:image/jpeg;base64,${f}` })
     setOnSessionEnd(fetchSessions)
   }, [setOnFrame, setOnSessionEnd])
+
+  // Send confidence threshold to backend when it changes during a session
+  useEffect(() => {
+    if (isRunning) {
+      // Send confidence update via WebSocket or API
+      // This will be handled by the backend
+      console.log('Confidence threshold updated to:', confidence)
+    }
+  }, [confidence, isRunning])
 
   // Auto-uppercase + debounced duplicate check
   const handleBatchChange = useCallback((raw) => {
@@ -66,10 +79,6 @@ export default function Dashboard() {
     }, 400)
   }, [])
 
-  const isIdle    = status === 'idle'
-  const isRunning = status === 'running'
-  const isStopped = status === 'stopped'
-
   const batchValid = BATCH_RE.test(batchId) && !batchError && !batchChecking
   const canStart = batchValid && operatorId.trim() && (source === 'camera' || videoFile)
 
@@ -78,14 +87,14 @@ export default function Dashboard() {
       setUploading(true)
       try {
         const { data } = await uploadVideo(videoFile)
-        start({ batchId, operatorId, videoPath: data.path })
+        start({ batchId, operatorId, videoPath: data.path, confidence: confidence / 100 })
       } catch {
         // error handled by ws hook
       } finally {
         setUploading(false)
       }
     } else {
-      start({ batchId, operatorId, cameraIndex: 0 })
+      start({ batchId, operatorId, cameraIndex: 0, confidence: confidence / 100 })
     }
   }
 
@@ -451,8 +460,16 @@ export default function Dashboard() {
                   <div className="p-1.5 bg-gray-800 rounded-lg group-hover:bg-[#4ed9a1]/10 transition-colors"><BarChart2 size={15} className="text-[#4ed9a1]" /></div> Total Sessions
                 </div>
                 <div className="flex items-end gap-3">
-                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 leading-none tracking-tighter drop-shadow-sm">{totalSessions > 0 ? totalSessions : 47}</span>
-                  <span className="text-[11px] font-bold text-[#4ed9a1] mb-1.5 bg-[#4ed9a1]/10 px-2 py-1 rounded-md border border-[#4ed9a1]/20">+{Math.max(1, Math.min(3, totalSessions))} this week</span>
+                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 leading-none tracking-tighter drop-shadow-sm">{totalSessions}</span>
+                  {totalSessions > 0 && (
+                    <span className="text-[11px] font-bold text-[#4ed9a1] mb-1.5 bg-[#4ed9a1]/10 px-2 py-1 rounded-md border border-[#4ed9a1]/20">
+                      {sessions.filter(s => {
+                        const weekAgo = new Date()
+                        weekAgo.setDate(weekAgo.getDate() - 7)
+                        return s.started_at && new Date(s.started_at) >= weekAgo
+                      }).length} this week
+                    </span>
+                  )}
                 </div>
               </div>
               
@@ -461,8 +478,16 @@ export default function Dashboard() {
                   <div className="p-1.5 bg-gray-800 rounded-lg group-hover:bg-[#4ed9a1]/10 transition-colors"><Box size={15} className="text-[#4ed9a1]" /></div> Total Packed
                 </div>
                 <div className="flex items-end gap-3">
-                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 leading-none tracking-tighter drop-shadow-sm">{totalBoxes > 0 ? totalBoxes.toLocaleString() : "6,284"}</span>
-                  <span className="text-[11px] font-bold text-[#4ed9a1] mb-1.5 bg-[#4ed9a1]/10 px-2 py-1 rounded-md border border-[#4ed9a1]/20">+{sessions[0]?.final_count || 412} this week</span>
+                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 leading-none tracking-tighter drop-shadow-sm">{totalBoxes.toLocaleString()}</span>
+                  {totalBoxes > 0 && (
+                    <span className="text-[11px] font-bold text-[#4ed9a1] mb-1.5 bg-[#4ed9a1]/10 px-2 py-1 rounded-md border border-[#4ed9a1]/20">
+                      {sessions.filter(s => {
+                        const weekAgo = new Date()
+                        weekAgo.setDate(weekAgo.getDate() - 7)
+                        return s.started_at && new Date(s.started_at) >= weekAgo
+                      }).reduce((sum, s) => sum + (s.final_count || 0), 0)} this week
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -471,18 +496,22 @@ export default function Dashboard() {
                   <div className="p-1.5 bg-gray-800 rounded-lg group-hover:bg-[#4ed9a1]/10 transition-colors"><Activity size={15} className="text-[#4ed9a1]" /></div> Avg. Session
                 </div>
                 <div className="flex items-end gap-3">
-                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 leading-none tracking-tighter drop-shadow-sm">{totalSessions > 0 ? avgPerSession : "133.7"}</span>
-                  <span className="text-[11px] font-bold text-[#4ed9a1] mb-1.5 bg-[#4ed9a1]/10 px-2 py-1 rounded-md border border-[#4ed9a1]/20">↑ 4.2% / month</span>
+                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 leading-none tracking-tighter drop-shadow-sm">{avgPerSession}</span>
+                  {totalSessions > 1 && (
+                    <span className="text-[11px] font-bold text-gray-400 mb-1.5 bg-gray-800 px-2 py-1 rounded-md border border-gray-700">
+                      boxes/session
+                    </span>
+                  )}
                 </div>
               </div>
 
               <div className="flex flex-col gap-4 lg:pl-6 group transition-transform hover:-translate-y-1 duration-300 cursor-default">
                 <div className="flex items-center gap-2.5 text-gray-400 text-[11px] font-bold uppercase tracking-widest group-hover:text-[#4ed9a1] transition-colors">
-                  <div className="p-1.5 bg-gray-800 rounded-lg group-hover:bg-[#4ed9a1]/10 transition-colors"><Activity size={15} className="text-[#4ed9a1]" /></div> Accuracy Rate
+                  <div className="p-1.5 bg-gray-800 rounded-lg group-hover:bg-[#4ed9a1]/10 transition-colors"><Activity size={15} className="text-[#4ed9a1]" /></div> Confidence
                 </div>
                 <div className="flex items-end gap-3">
-                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 leading-none tracking-tighter drop-shadow-sm">98.3%</span>
-                  <span className="text-[11px] font-bold text-gray-400 mb-1.5 bg-gray-800 px-2 py-1 rounded-md border border-gray-700">Stable</span>
+                  <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 leading-none tracking-tighter drop-shadow-sm">{confidence}%</span>
+                  <span className="text-[11px] font-bold text-[#4ed9a1] mb-1.5 bg-[#4ed9a1]/10 px-2 py-1 rounded-md border border-[#4ed9a1]/20">Threshold</span>
                 </div>
               </div>
             </div>

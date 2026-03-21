@@ -745,25 +745,63 @@ export default function Sessions() {
 
                   {/* ── Expanded detail panel ── */}
                   {isExpanded && (
-                    <div className="border-t border-gray-800 px-5 py-4">
-                      <div className="grid grid-cols-2 gap-x-8 gap-y-2.5">
+                    <div className="border-t border-gray-800 bg-gray-950/50 px-5 py-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                      {/* Key metrics strip */}
+                      <div className="grid grid-cols-4 gap-3 mb-5">
+                        <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                            <Box size={12} className="text-sky-400" />
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Boxes</span>
+                          </div>
+                          <p className="text-2xl font-black text-sky-400 tabular-nums">{s.final_count ?? '—'}</p>
+                        </div>
+                        <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                            <Clock size={12} className="text-indigo-400" />
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Duration</span>
+                          </div>
+                          <p className="text-2xl font-black text-indigo-400 tabular-nums">{dur ?? '—'}</p>
+                        </div>
+                        <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                            <Activity size={12} className={s.status === 'completed' ? 'text-green-400' : 'text-yellow-400'} />
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Status</span>
+                          </div>
+                          <p className={`text-sm font-black uppercase tracking-wide ${s.status === 'completed' ? 'text-green-400' : 'text-yellow-400'}`}>
+                            {s.status}
+                          </p>
+                        </div>
+                        <div className="bg-gray-900/80 border border-gray-800 rounded-xl p-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                            {s.source_type === 'upload' ? <Upload size={12} className="text-purple-400" /> : <Camera size={12} className="text-sky-400" />}
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Source</span>
+                          </div>
+                          <p className={`text-sm font-black uppercase tracking-wide ${s.source_type === 'upload' ? 'text-purple-400' : 'text-sky-400'}`}>
+                            {s.source_type === 'upload' ? 'Upload' : 'Live'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Detailed info grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {[
-                          { label: 'Session ID',   value: s._id,          mono: true },
-                          { label: 'Batch ID',     value: s.batch_id },
-                          { label: 'Operator',     value: s.operator_id },
-                          { label: 'Status',       value: s.status?.toUpperCase() },
-                          { label: 'Source',       value: s.source_type === 'upload' ? 'Uploaded Video' : 'Live Camera' },
-                          { label: 'Final Count',  value: `${s.final_count ?? '—'} boxes` },
-                          { label: 'Started At',   value: fmt(s.started_at) },
-                          { label: 'Ended At',     value: fmt(s.ended_at) },
-                          { label: 'Duration',     value: dur ?? '—' },
-                          { label: 'Has Recording',value: s.video_path ? 'Yes' : 'No' },
-                        ].map(({ label, value, mono }) => (
-                          <div key={label} className="flex items-start gap-3">
-                            <span className="text-xs text-gray-500 w-28 shrink-0 pt-0.5">{label}</span>
-                            <span className={`text-xs font-semibold text-white break-all ${mono ? 'font-mono text-sky-300 text-[10px]' : ''}`}>
-                              {value}
-                            </span>
+                          { label: 'Session ID', value: s._id, icon: Hash, mono: true },
+                          { label: 'Batch ID', value: s.batch_id, icon: Hash },
+                          { label: 'Operator ID', value: s.operator_id, icon: Activity },
+                          { label: 'Recording Available', value: s.video_path ? 'Yes' : 'No', icon: Film },
+                          { label: 'Started At', value: fmt(s.started_at), icon: Clock },
+                          { label: 'Ended At', value: fmt(s.ended_at), icon: Clock },
+                        ].map(({ label, value, icon: Icon, mono }) => (
+                          <div key={label} className="bg-gray-900/60 border border-gray-800 rounded-xl p-3 flex items-start gap-3 hover:border-gray-700 transition-colors">
+                            <div className="w-8 h-8 bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                              <Icon size={13} className="text-gray-500" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+                              <p className={`text-xs font-semibold text-white break-all leading-relaxed ${mono ? 'font-mono text-sky-300 text-[10px]' : ''}`}>
+                                {value}
+                              </p>
+                            </div>
                           </div>
                         ))}
                       </div>

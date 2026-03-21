@@ -31,27 +31,8 @@ export default function OperatorStats() {
   const [loading, setLoading]   = useState(true)
   const [err, setErr]           = useState(false)
   const [activeOp, setActiveOp] = useState(null)
-  const [rangeOption, setRangeOption] = useState('15') // '10', '15', '25', 'all'
-  const [showRangeMenu, setShowRangeMenu] = useState(false)
   const [chartTransitioning, setChartTransitioning] = useState(false)
   const [chartKey, setChartKey] = useState(0)
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => setShowRangeMenu(false)
-    if (showRangeMenu) {
-      document.addEventListener('click', handleClickOutside)
-      return () => document.removeEventListener('click', handleClickOutside)
-    }
-  }, [showRangeMenu])
-
-  // Trigger transition effect when range changes
-  useEffect(() => {
-    setChartTransitioning(true)
-    setChartKey(prev => prev + 1)
-    const timer = setTimeout(() => setChartTransitioning(false), 300)
-    return () => clearTimeout(timer)
-  }, [rangeOption])
 
   const load = () => {
     setLoading(true); setErr(false)
@@ -97,9 +78,8 @@ export default function OperatorStats() {
       .filter(s => (s.final_count || 0) > 0)
       .sort((a, b) => new Date(a.started_at) - new Date(b.started_at))
     
-    const count = rangeOption === 'all' ? filtered.length : parseInt(rangeOption)
-    // Take from the START (first N batches), not from the end
-    const result = filtered.slice(0, count).map((s, idx) => ({
+    // Show all batches from 1 to latest
+    const result = filtered.map((s, idx) => ({
       name: s.batch_id || '—',
       boxes: s.final_count || 0,
       operator: s.operator_id || '—',
@@ -107,9 +87,9 @@ export default function OperatorStats() {
       session: s,
     }))
     
-    console.log(`📊 Range: ${rangeOption} | Filtered: ${filtered.length} | Showing: ${result.length} batches`)
+    console.log(`📊 Showing all ${result.length} batches with detections`)
     return result
-  }, [completed, rangeOption])
+  }, [completed])
 
   // Dynamic chart height based on data points
   const chartHeight = useMemo(() => {
@@ -430,7 +410,7 @@ export default function OperatorStats() {
   )
 
   return (
-    <main className="flex-1 p-5 max-w-6xl mx-auto w-full flex flex-col gap-4 overflow-y-auto">
+    <main className="flex-1 p-5 max-w-6xl mx-auto w-full flex flex-col gap-2 overflow-y-auto">
 
       {/* ── Header ── */}
       <FadeUp className="flex items-center justify-between">
@@ -444,22 +424,22 @@ export default function OperatorStats() {
             <button
               onClick={exportThroughputPDF}
               disabled={completed.length === 0}
-              className="flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 border border-indigo-500 disabled:border-gray-700 text-white px-3 py-1.5 rounded-lg transition-colors font-medium">
-              <Download size={11} /> Export Stats
+              className="flex items-center gap-2 text-xs bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-600 border border-indigo-500/50 disabled:border-gray-700 text-white px-4 py-2 rounded-lg transition-all font-semibold shadow-lg shadow-indigo-500/20 disabled:shadow-none hover:scale-105 disabled:hover:scale-100">
+              <Download size={13} /> Export Stats
             </button>
           </Tooltip>
           
           <Tooltip label="Refresh analytics">
             <button onClick={load}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-lg transition-colors">
-              <RefreshCw size={11} /> Refresh · {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
+              className="flex items-center gap-2 text-xs text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 px-4 py-2 rounded-lg transition-all font-medium">
+              <RefreshCw size={13} /> Refresh · {Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}
             </button>
           </Tooltip>
         </div>
       </FadeUp>
 
       {/* ── KPI row ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {[
           { icon: Box,      label: 'Total Boxes',   value: kpis.totalBoxes,              sub: 'all time',              color: '#38bdf8', bg: 'bg-sky-950',    border: 'border-sky-900', tip: 'Total boxes across all completed sessions' },
           { icon: Trophy,   label: 'Best Session',  value: kpis.best?.final_count ?? '—', sub: kpis.best?.batch_id ?? 'no data', color: '#fbbf24', bg: 'bg-amber-950',  border: 'border-amber-900', tip: 'Highest box count in a single session' },
@@ -469,8 +449,8 @@ export default function OperatorStats() {
         ].map(({ icon: Icon, label, value, sub, color, bg, border, tip }, idx) => (
           <ScalePop key={label} delay={idx * 0.06}>
             <Tooltip label={tip}>
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3.5 flex items-center gap-3 hover:border-gray-700 transition-colors cursor-default">
-                <div className={`w-9 h-9 shrink-0 ${bg} border ${border} rounded-xl flex items-center justify-center`}>
+              <div className="bg-gray-900 border border-gray-800 rounded-xl px-3 py-3 flex items-center gap-2.5 hover:border-gray-700 transition-colors cursor-default">
+                <div className={`w-9 h-9 shrink-0 ${bg} border ${border} rounded-lg flex items-center justify-center`}>
                   <Icon size={15} style={{ color }} />
                 </div>
                 <div className="min-w-0">
@@ -485,44 +465,18 @@ export default function OperatorStats() {
       </div>
 
       {/* ── Row 2: Trend + Source ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
 
         {/* Area chart */}
-        <FadeUp delay={0.1} className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-4">
+        <FadeUp delay={0.1} className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm font-semibold text-white leading-none">Throughput Trend</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Boxes per session · {rangeOption === 'all' ? `all ${timelineData.length}` : `first ${timelineData.length}`} with detections
+                Boxes per session · all {timelineData.length} batches with detections
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Range selector */}
-              <div className="relative">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowRangeMenu(!showRangeMenu) }}
-                  className="flex items-center gap-1.5 text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 px-2.5 py-1.5 rounded-lg transition-colors">
-                  {rangeOption === 'all' ? 'All' : `First ${rangeOption}`}
-                  <ChevronDown size={11} className={`transition-transform ${showRangeMenu ? 'rotate-180' : ''}`} />
-                </button>
-                {showRangeMenu && (
-                  <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10 py-1 min-w-[120px]">
-                    {['10', '15', '25', 'all'].map(opt => (
-                      <button
-                        key={opt}
-                        onClick={(e) => { e.stopPropagation(); setRangeOption(opt); setShowRangeMenu(false) }}
-                        className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-                          rangeOption === opt
-                            ? 'bg-sky-600 text-white'
-                            : 'text-gray-300 hover:bg-gray-700'
-                        }`}>
-                        {opt === 'all' ? 'All Sessions' : `First ${opt} Batches`}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              
               <TrendingUp size={14} className="text-sky-400" />
             </div>
           </div>
@@ -586,7 +540,7 @@ export default function OperatorStats() {
         </FadeUp>
 
         {/* Source split */}
-        <FadeUp delay={0.15} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col">
+        <FadeUp delay={0.15} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-white leading-none">Source Split</p>
             <Zap size={13} className="text-gray-600" />
@@ -622,10 +576,10 @@ export default function OperatorStats() {
       </div>
 
       {/* ── Row 3: Leaderboard + Hour chart ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 items-stretch">
 
         {/* Operator leaderboard */}
-        <FadeUp delay={0.1} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col">
+        <FadeUp delay={0.1} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm font-semibold text-white leading-none">Operator Leaderboard</p>
@@ -682,7 +636,7 @@ export default function OperatorStats() {
         </FadeUp>
 
         {/* Hour distribution */}
-        <FadeUp delay={0.15} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col min-h-[260px]">
+        <FadeUp delay={0.15} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col min-h-[260px]">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm font-semibold text-white leading-none">Activity — Last 24 Hours</p>
@@ -718,7 +672,7 @@ export default function OperatorStats() {
 
       {/* ── Top batches ── */}
       {topBatches.length > 0 && (
-        <FadeUp delay={0.1} className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+        <FadeUp delay={0.1} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm font-semibold text-white leading-none">Top Batches</p>

@@ -261,6 +261,7 @@ def websocket_stream(ws):
     operator_id  = (init.get("operator_id") or "").strip()
     camera_index = int(init.get("camera_index", 0))
     video_path   = init.get("video_path", None)
+    confidence   = float(init.get("confidence", 0.35))  # Default 35% if not provided
 
     err = _validate_batch_id(batch_id)
     if err:
@@ -270,7 +271,15 @@ def websocket_stream(ws):
     source_type = "upload" if video_path else "live"
     session_id  = create_session(batch_id, operator_id, source_type, video_path)
 
-    counter  = _counter
+    # Create a new counter instance for this session with the specified confidence
+    counter = None
+    if _counter:
+        try:
+            counter = BoxCounter(MODEL_PATH)
+            counter.set_confidence(confidence)
+        except Exception as e:
+            print(f"[WS] Failed to create counter: {e}")
+    
     recorder = VideoRecorder(session_id, fps=10, resolution=(FRAME_WIDTH, FRAME_HEIGHT))
 
     source = video_path if video_path else camera_index
@@ -288,6 +297,7 @@ def websocket_stream(ws):
 
     frame_num = 0
     count     = 0
+    max_count = 0  # Track maximum count reached during session
 
     try:
         while ws.connected:
@@ -299,6 +309,7 @@ def websocket_stream(ws):
 
             if counter:
                 count, confidences = counter.process_frame(frame)
+                max_count = max(max_count, count)  # Update max count
                 frame = counter.draw_overlay(frame, count)
                 frame_num += 1
                 if frame_num % LOG_EVERY_N == 0:
@@ -329,11 +340,11 @@ def websocket_stream(ws):
     finally:
         cap.release()
         saved_path = recorder.stop()
-        end_session(session_id, count, saved_path)
+        end_session(session_id, max_count, saved_path)  # Use max_count instead of count
         try:
             if ws.connected:
                 ws.send(json.dumps({
-                    "frame": "", "count": count,
+                    "frame": "", "count": max_count,  # Send max_count in final message
                     "session_active": False,
                     "session_id": session_id,
                 }))
