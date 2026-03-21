@@ -20,7 +20,7 @@ export default function App() {
     <BrowserRouter>
       <SessionProvider>
         {/* Eye-catching global background */}
-        <div className="min-h-screen bg-[#02040a] text-gray-100 flex flex-col relative overflow-x-hidden selection:bg-[#4ed9a1]/30 selection:text-white">
+        <div className="min-h-screen bg-[#02040a] text-gray-100 flex flex-col relative overflow-hidden selection:bg-[#4ed9a1]/30 selection:text-white">
           
           {/* Animated Ambient Light & Sophisticated Grid Pattern */}
           <div className="absolute inset-0 z-0 pointer-events-none bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:48px_48px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_0%,#000_60%,transparent_100%)]" />
@@ -31,7 +31,7 @@ export default function App() {
           <div className="absolute bottom-[-10%] right-[-10%] w-[700px] h-[700px] rounded-full bg-[#4ed9a1]/10 blur-[150px] pointer-events-none z-0 animate-pulse" style={{ animationDuration: '6s' }} />
           
           {/* Main App Content */}
-          <div className="relative z-10 flex flex-col flex-1 h-full min-h-screen">
+          <div className="relative z-10 flex flex-col flex-1 min-h-screen overflow-hidden">
             <Header />
             <Suspense fallback={<PageLoader />}>
               <Routes>

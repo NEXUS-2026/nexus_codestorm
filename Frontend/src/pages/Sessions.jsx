@@ -5,9 +5,10 @@ import {
   ClipboardList, Play, X, RefreshCw, Box, Clock,
   Camera, Upload, Film, AlertCircle, Search,
   FileText, Hash, Filter, CheckCircle, Activity,
-  Download, Eye, User, Package, Zap, QrCode, Trash2,
-  ChevronDown, ChevronUp, Pencil
+  Download, Eye, Trash2, Pencil, ChevronDown, ChevronUp, QrCode
 } from 'lucide-react'
+import { FadeUp, ScalePop, StaggerList, StaggerItem, HoverCard } from '../components/Motion'
+import Tooltip from '../components/Tooltip'
 
 // ── Video Modal ───────────────────────────────────────────────
 function VideoModal({ session, type, onClose }) {
@@ -142,17 +143,27 @@ function ChallanModal({ session, onClose }) {
   const [fileName, setFileName] = useState(defaultName)
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true); setError(false)
+    setLoading(true)
+    setError(false)
     downloadChallan(session._id)
       .then(({ data }) => {
         const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
         setPdfUrl(url)
       })
-      .catch(() => setError(true))
+      .catch((err) => {
+        console.error('Challan generation error:', err)
+        setError(true)
+      })
       .finally(() => setLoading(false))
-    return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl) }
-  }, [session._id, pdfUrl])
+    
+    // Cleanup: revoke the URL when component unmounts
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session._id])
 
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose() }
@@ -366,7 +377,6 @@ function SessionDetailModal({ session, onClose, onChallan, onVideo }) {
 }
 
 // ── Stat Card ─────────────────────────────────────────────────
-// eslint-disable-next-line no-unused-vars
 function StatCard({ icon: Icon, label, value, sub, accent = 'sky' }) {
   const colors = {
     sky:    { bg: 'bg-sky-950',    border: 'border-sky-900',    icon: 'text-sky-400',    val: 'text-sky-400' },
@@ -376,16 +386,18 @@ function StatCard({ icon: Icon, label, value, sub, accent = 'sky' }) {
   }
   const c = colors[accent]
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex flex-col gap-3">
-      <div className={`w-9 h-9 ${c.bg} border ${c.border} rounded-xl flex items-center justify-center`}>
-        <Icon size={16} className={c.icon} />
-      </div>
-      <div>
-        <p className={`text-2xl font-black tabular-nums ${c.val}`}>{value}</p>
-        <p className="text-xs font-semibold text-white mt-0.5">{label}</p>
-        {sub && <p className="text-xs text-gray-600 mt-0.5">{sub}</p>}
-      </div>
-    </div>
+    <ScalePop>
+      <HoverCard className="bg-gray-900 border border-gray-800 rounded-xl p-3.5 flex items-center gap-3 h-full">
+        <div className={`w-8 h-8 shrink-0 ${c.bg} border ${c.border} rounded-lg flex items-center justify-center`}>
+          <Icon size={14} className={c.icon} />
+        </div>
+        <div className="min-w-0">
+          <p className={`text-xl font-black tabular-nums leading-none ${c.val}`}>{value}</p>
+          <p className="text-xs font-semibold text-white mt-0.5 leading-none">{label}</p>
+          {sub && <p className="text-[10px] text-gray-600 mt-0.5 truncate">{sub}</p>}
+        </div>
+      </HoverCard>
+    </ScalePop>
   )
 }
 
@@ -528,95 +540,62 @@ export default function Sessions() {
         </div>
       )}
 
-      <main className="flex-1 p-6 max-w-5xl mx-auto w-full">
+      <main className="flex-1 p-4 max-w-5xl mx-auto w-full">
 
         {/* ── Page header ── */}
-        <div className="flex items-center justify-between mb-6">
+        <FadeUp className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-lg font-bold text-white">Sessions</h1>
+            <h1 className="text-base font-bold text-white">Sessions</h1>
             <p className="text-xs text-gray-500 mt-0.5">All packing sessions recorded by the system</p>
           </div>
-          <button onClick={load}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded-xl transition-colors">
-            <RefreshCw size={11} /> Refresh
-          </button>
-        </div>
+          <Tooltip label="Refresh sessions">
+            <button onClick={load}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-1.5 rounded-xl transition-colors">
+              <RefreshCw size={11} /> Refresh
+            </button>
+          </Tooltip>
+        </FadeUp>
 
         {/* ── Stat cards ── */}
         {!loading && !fetchError && (
-          <div className="grid grid-cols-4 gap-3 mb-6">
-            <StatCard
-              icon={Hash}
-              label="Total Sessions"
-              value={stats.total}
-              sub="all time"
-              accent="sky"
-            />
-            <StatCard
-              icon={Box}
-              label="Boxes Detected"
-              value={stats.totalBoxes}
-              sub="across completed sessions"
-              accent="purple"
-            />
-            <StatCard
-              icon={CheckCircle}
-              label="Completed"
-              value={stats.completed}
-              sub={`${stats.total - stats.completed} still active`}
-              accent="green"
-            />
-            <StatCard
-              icon={Activity}
-              label="Avg Box Count"
-              value={stats.avg}
-              sub="per completed session"
-              accent="amber"
-            />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <StatCard icon={Hash}        label="Total Sessions"  value={stats.total}      sub="all time"                              accent="sky" />
+            <StatCard icon={Box}         label="Boxes Detected"  value={stats.totalBoxes} sub="across completed sessions"             accent="purple" />
+            <StatCard icon={CheckCircle} label="Completed"       value={stats.completed}  sub={`${stats.total - stats.completed} still active`} accent="green" />
+            <StatCard icon={Activity}    label="Avg Box Count"   value={stats.avg}        sub="per completed session"                 accent="amber" />
           </div>
         )}
 
         {/* ── Search + filter bar ── */}
         {!loading && !fetchError && sessions.length > 0 && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <FadeUp delay={0.05} className="flex items-center gap-2 mb-3 flex-wrap">
             <div className="flex-1 min-w-48 relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Search by batch ID or operator..."
-                className="w-full bg-gray-900 border border-gray-800 focus:border-sky-600 rounded-xl pl-8 pr-4 py-2.5 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-600"
+                className="w-full bg-gray-900 border border-gray-800 focus:border-sky-600 rounded-xl pl-8 pr-4 py-2 text-xs text-gray-100 outline-none transition-colors placeholder:text-gray-600"
               />
             </div>
             <FilterPill
               value={filterStatus}
               onChange={setFilterStatus}
-              options={[
-                { value: 'all', label: 'All' },
-                { value: 'completed', label: 'Completed' },
-                { value: 'active', label: 'Active' },
-              ]}
+              options={[{ value: 'all', label: 'All' }, { value: 'completed', label: 'Completed' }, { value: 'active', label: 'Active' }]}
             />
             <FilterPill
               value={filterSource}
               onChange={setFilterSource}
-              options={[
-                { value: 'all', label: 'All' },
-                { value: 'live', label: 'Live' },
-                { value: 'upload', label: 'Upload' },
-              ]}
+              options={[{ value: 'all', label: 'All' }, { value: 'live', label: 'Live' }, { value: 'upload', label: 'Upload' }]}
             />
             {filtersActive && (
-              <button
-                onClick={() => { setSearch(''); setFilterStatus('all'); setFilterSource('all') }}
-                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 px-2 py-2 transition-colors">
-                <X size={12} /> Clear
+              <button onClick={() => { setSearch(''); setFilterStatus('all'); setFilterSource('all') }}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 px-2 py-1.5 transition-colors">
+                <X size={11} /> Clear
               </button>
             )}
-            <span className="text-xs text-gray-600 ml-auto">
-              {filtered.length} of {sessions.length}
-            </span>
-          </div>
+            <span className="text-xs text-gray-600 ml-auto">{filtered.length} of {sessions.length}</span>
+          </FadeUp>
         )}
 
         {/* ── States ── */}
@@ -662,12 +641,13 @@ export default function Sessions() {
 
         {/* ── Session cards ── */}
         {!loading && !fetchError && filtered.length > 0 && (
-          <div className="flex flex-col gap-2.5">
+          <StaggerList className="flex flex-col gap-2">
             {filtered.map(s => {
               const isExpanded = expandedId === s._id
               const dur = duration(s)
               return (
-                <div key={s._id}
+                <StaggerItem key={s._id}>
+                <div
                   ref={el => cardRefs.current[s._id] = el}
                   className={`bg-gray-900 border rounded-2xl transition-all ${
                     highlightId === s._id
@@ -676,14 +656,15 @@ export default function Sessions() {
                   }`}>
 
                   {/* ── Collapsed row (always visible) ── */}
+                  <HoverCard>
                   <div
-                    className="px-5 py-4 flex items-center gap-4 cursor-pointer select-none"
+                    className="px-4 py-3 flex items-center gap-3 cursor-pointer select-none"
                     onClick={() => setExpandedId(isExpanded ? null : s._id)}>
 
                     {/* Count badge */}
-                    <div className="w-14 h-14 bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center shrink-0">
-                      <Box size={11} className="text-sky-500 mb-0.5" />
-                      <span className="text-xl font-black text-sky-400 tabular-nums leading-none">
+                    <div className="w-12 h-12 bg-gray-800 border border-gray-700 rounded-xl flex flex-col items-center justify-center shrink-0">
+                      <Box size={10} className="text-sky-500 mb-0.5" />
+                      <span className="text-lg font-black text-sky-400 tabular-nums leading-none">
                         {s.final_count ?? '—'}
                       </span>
                     </div>
@@ -716,42 +697,51 @@ export default function Sessions() {
                     </div>
 
                     {/* Actions */}
-                    <div className="shrink-0 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                    <div className="shrink-0 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                       {s.status === 'completed' && (
-                        <button onClick={() => setChallanSession(s)}
-                          className="flex items-center gap-1.5 text-xs bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white px-3 py-2 rounded-xl transition-colors font-medium">
-                          <Eye size={11} /> Challan
-                        </button>
+                        <Tooltip label="View challan PDF">
+                          <button onClick={() => setChallanSession(s)}
+                            className="flex items-center gap-1.5 text-xs bg-indigo-700 hover:bg-indigo-600 border border-indigo-600 text-white px-2.5 py-1.5 rounded-xl transition-colors font-medium">
+                            <Eye size={11} /> Challan
+                          </button>
+                        </Tooltip>
                       )}
                       {s.video_path ? (
-                        <button onClick={() => setModal({ session: s, type: 'recording' })}
-                          className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-2 rounded-xl transition-colors font-medium">
-                          <Play size={11} fill="white" /> Recording
-                        </button>
+                        <Tooltip label="Watch session recording">
+                          <button onClick={() => setModal({ session: s, type: 'recording' })}
+                            className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-2.5 py-1.5 rounded-xl transition-colors font-medium">
+                            <Play size={11} fill="white" /> Recording
+                          </button>
+                        </Tooltip>
                       ) : (
                         <span className="text-xs text-gray-700">No recording</span>
                       )}
                       {s.source_type === 'upload' && s.upload_path && (
-                        <button onClick={() => setModal({ session: s, type: 'upload' })}
-                          className="flex items-center gap-1.5 text-xs bg-purple-700 hover:bg-purple-600 text-white px-3 py-2 rounded-xl transition-colors font-medium">
-                          <Upload size={11} /> Source
-                        </button>
+                        <Tooltip label="Play source video">
+                          <button onClick={() => setModal({ session: s, type: 'upload' })}
+                            className="flex items-center gap-1.5 text-xs bg-purple-700 hover:bg-purple-600 text-white px-2.5 py-1.5 rounded-xl transition-colors font-medium">
+                            <Upload size={11} /> Source
+                          </button>
+                        </Tooltip>
                       )}
-                      <button
-                        onClick={() => setDeleteId(s._id)}
-                        disabled={deleting === s._id}
-                        className="w-8 h-8 flex items-center justify-center rounded-xl bg-gray-800 hover:bg-red-950 hover:border-red-800 border border-gray-700 text-gray-600 hover:text-red-400 transition-colors disabled:opacity-40">
-                        {deleting === s._id
-                          ? <span className="w-3 h-3 border border-gray-600 border-t-red-400 rounded-full animate-spin" />
-                          : <Trash2 size={12} />}
-                      </button>
+                      <Tooltip label="Delete session">
+                        <button
+                          onClick={() => setDeleteId(s._id)}
+                          disabled={deleting === s._id}
+                          className="w-7 h-7 flex items-center justify-center rounded-xl bg-gray-800 hover:bg-red-950 hover:border-red-800 border border-gray-700 text-gray-600 hover:text-red-400 transition-colors disabled:opacity-40">
+                          {deleting === s._id
+                            ? <span className="w-3 h-3 border border-gray-600 border-t-red-400 rounded-full animate-spin" />
+                            : <Trash2 size={11} />}
+                        </button>
+                      </Tooltip>
                     </div>
 
                     {/* Expand chevron */}
                     <div className="text-gray-600 shrink-0">
-                      {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                     </div>
                   </div>
+                  </HoverCard>
 
                   {/* ── Expanded detail panel ── */}
                   {isExpanded && (
@@ -781,9 +771,10 @@ export default function Sessions() {
                   )}
 
                 </div>
+                </StaggerItem>
               )
             })}
-          </div>
+          </StaggerList>
         )}
 
       </main>

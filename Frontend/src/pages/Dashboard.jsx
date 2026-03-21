@@ -4,6 +4,8 @@ import { Play, Square, RotateCcw, Camera, User, Hash, Box, Package, Upload, Vide
 import { useSession } from '../context/SessionContext'
 import { getSessions, uploadVideo } from '../api'
 import axios from 'axios'
+import { FadeUp, ScalePop } from '../components/Motion'
+import Tooltip from '../components/Tooltip'
 
 const BATCH_RE = /^[A-Z][A-Z0-9]*-\d+$/
 
@@ -102,7 +104,7 @@ export default function Dashboard() {
       <div className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
         
         {/* Icon + title */}
-        <div className="flex flex-col items-center gap-5 mb-10">
+        <FadeUp className="flex flex-col items-center gap-5 mb-10">
           <div className="relative group">
             <div className="absolute inset-0 bg-sky-500 rounded-3xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity duration-500 animate-pulse" />
             <div className="relative w-20 h-20 bg-gradient-to-br from-sky-400 to-sky-700 rounded-3xl flex items-center justify-center shadow-2xl border border-sky-400/30">
@@ -113,7 +115,7 @@ export default function Dashboard() {
             <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-400 tracking-tight">Packing Session</h1>
             <p className="text-[15px] text-gray-400 mt-2 font-medium">Configure session details to activate AI monitoring</p>
           </div>
-        </div>
+        </FadeUp>
 
         {/* Form card */}
         <div className="bg-gray-900/60 backdrop-blur-2xl border border-gray-800/80 shadow-[0_8px_40px_rgba(0,0,0,0.8)] rounded-[2rem] p-8 flex flex-col gap-6 relative overflow-hidden">
@@ -158,16 +160,20 @@ export default function Dashboard() {
           <div className="flex flex-col gap-2">
             <label className="text-[11px] text-gray-400 font-bold tracking-widest uppercase">Video Source</label>
             <div className="grid grid-cols-2 gap-3 p-1 bg-gray-950/80 rounded-2xl border border-gray-800">
-              <button type="button" onClick={() => setSource('camera')}
-                className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-300 shadow-sm
-                  ${source === 'camera' ? 'bg-sky-600 text-white shadow-sky-600/20 scale-[0.98]' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'}`}>
-                <Camera size={16} /> Live Camera
-              </button>
-              <button type="button" onClick={() => setSource('video')}
-                className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-300 shadow-sm
-                  ${source === 'video' ? 'bg-sky-600 text-white shadow-sky-600/20 scale-[0.98]' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'}`}>
-                <Video size={16} /> Upload Video
-              </button>
+              <Tooltip label="Use live webcam feed">
+                <button type="button" onClick={() => setSource('camera')}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-300 shadow-sm w-full
+                    ${source === 'camera' ? 'bg-sky-600 text-white shadow-sky-600/20 scale-[0.98]' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'}`}>
+                  <Camera size={16} /> Live Camera
+                </button>
+              </Tooltip>
+              <Tooltip label="Upload a pre-recorded video">
+                <button type="button" onClick={() => setSource('video')}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-300 shadow-sm w-full
+                    ${source === 'video' ? 'bg-sky-600 text-white shadow-sky-600/20 scale-[0.98]' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'}`}>
+                  <Video size={16} /> Upload Video
+                </button>
+              </Tooltip>
             </div>
           </div>
 
@@ -193,14 +199,16 @@ export default function Dashboard() {
             </div>
           )}
 
-          <button
-            onClick={handleStart}
-            disabled={!canStart || uploading}
-            className="mt-4 w-full flex items-center justify-center gap-2 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white py-4 rounded-2xl text-[15px] font-black tracking-wide shadow-lg shadow-sky-600/20 transition-all duration-300 hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:shadow-none">
-            {uploading
-              ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Uploading...</>
-              : <><Play size={18} fill="currentColor" /> START SESSION</>}
-          </button>
+          <Tooltip label={!canStart ? 'Fill in all fields to start' : 'Start AI monitoring session'}>
+            <button
+              onClick={handleStart}
+              disabled={!canStart || uploading}
+              className="mt-4 w-full flex items-center justify-center gap-2 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 disabled:from-gray-800 disabled:to-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white py-4 rounded-2xl text-[15px] font-black tracking-wide shadow-lg shadow-sky-600/20 transition-all duration-300 hover:shadow-sky-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:shadow-none">
+              {uploading
+                ? <><span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Uploading...</>
+                : <><Play size={18} fill="currentColor" /> START SESSION</>}
+            </button>
+          </Tooltip>
 
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 animate-in fade-in">
@@ -211,7 +219,7 @@ export default function Dashboard() {
 
         {/* Recent sessions below form */}
         {sessions.length > 0 && (
-          <div className="mt-6 bg-gray-900/40 backdrop-blur-lg border border-gray-800/80 rounded-3xl p-6 flex flex-col gap-3 shadow-xl hover:border-gray-800 transition-colors">
+          <ScalePop delay={0.2} className="mt-6 bg-gray-900/40 backdrop-blur-lg border border-gray-800/80 rounded-3xl p-6 flex flex-col gap-3 shadow-xl hover:border-gray-800 transition-colors">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[11px] font-bold tracking-widest uppercase text-gray-400 flex items-center gap-2">
                 <List size={14}/> Recent Sessions
@@ -229,7 +237,7 @@ export default function Dashboard() {
                 <span className="text-sky-400 font-extrabold tabular-nums bg-sky-400/10 px-2.5 py-0.5 rounded-lg border border-sky-400/20">{s.final_count ?? '—'} <span className="text-[10px] text-sky-500 uppercase tracking-widest">box</span></span>
               </div>
             ))}
-          </div>
+          </ScalePop>
         )}
 
       </div>
