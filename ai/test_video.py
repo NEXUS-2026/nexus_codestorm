@@ -17,7 +17,7 @@ from src.utils import draw_overlay, get_centroid
 from src.utils import preprocess_frame
 
 # Config
-confidence_threshold = float(os.getenv("CONFIDENCE_THRESHOLD", 0.5))
+confidence_threshold = float(os.getenv("CONFIDENCE_THRESHOLD", 0.35))
 max_disappeared = int(os.getenv("MAX_DISAPPEARED", 20))
 max_distance = int(os.getenv("MAX_DISTANCE", 80))
 
