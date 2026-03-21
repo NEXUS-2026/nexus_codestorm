@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 import cv2
 import numpy as np
 from flask import Flask, jsonify, send_file, request, Response
@@ -13,33 +14,65 @@ load_dotenv()
 from database import (
     create_session, end_session, get_session,
     list_sessions, log_detection, get_logs_for_session,
-    get_operator_stats, delete_session,
+    get_operator_stats, delete_session, batch_id_exists,
 )
 from video_recorder import VideoRecorder
 from pdf_generator import generate_challan
+from detection import BoxCounter
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins="*", methods=["GET", "POST", "DELETE", "OPTIONS"], allow_headers=["Content-Type"])
 sock = Sock(app)
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "best.pt")
+MODEL_PATH   = os.path.join(os.path.dirname(__file__), os.getenv("MODEL_PATH", "models/best.pt"))
 FRAME_WIDTH  = 640
 FRAME_HEIGHT = 480
 LOG_EVERY_N  = 30
 
-
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Load YOLO model once at startup
+try:
+    _counter = BoxCounter(MODEL_PATH)
+    print("[main] YOLO model loaded successfully")
+except Exception as e:
+    _counter = None
+    print(f"[main] WARN: Could not load model: {e}")
+
+# Batch ID must be UPPERCASE WORD(S)-NUMBER, e.g. BATCH-001, WH-42, PACK-999
+BATCH_ID_RE = re.compile(r'^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*-\d+$')
+
+def _validate_batch_id(batch_id: str):
+    """Returns error string or None if valid."""
+    if not batch_id:
+        return "Batch ID is required."
+    if not BATCH_ID_RE.match(batch_id):
+        return "Batch ID must be uppercase in format WORD-NUMBER (e.g. BATCH-001)."
+    if batch_id_exists(batch_id):
+        return f"Batch ID '{batch_id}' already exists. Use a unique batch ID."
+    return None
 
 
 # ── Health ────────────────────────────────────────────────────
 @app.route("/")
 def index():
-    return jsonify({"status": "ok", "message": "Warehouse Box Counter API is running"})
+    return jsonify({"status": "ok", "message": "WAREgaurd API is running"})
 
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+# ── Batch ID validation endpoint ──────────────────────────────
+@app.route("/validate/batch", methods=["POST"])
+def validate_batch():
+    data = request.get_json() or {}
+    batch_id = (data.get("batch_id") or "").strip().upper()
+    err = _validate_batch_id(batch_id)
+    if err:
+        return jsonify({"valid": False, "error": err}), 400
+    return jsonify({"valid": True})
 
 
 # ── Sessions ──────────────────────────────────────────────────
@@ -57,7 +90,6 @@ def session_detail(session_id):
     if request.method == "GET":
         return jsonify(session)
 
-    # DELETE — remove from MongoDB, logs, video file, challan PDF
     if session.get("video_path") and os.path.exists(session["video_path"]):
         try: os.remove(session["video_path"])
         except Exception: pass
@@ -108,16 +140,10 @@ def upload_video():
     return jsonify({"path": save_path})
 
 
-# ── Video serving with range support (required for browser <video> seeking) ───
+# ── Video serving with range support ─────────────────────────
 def serve_video(path):
     ext = os.path.splitext(path)[1].lower()
-    if ext == ".mp4":
-        mimetype = "video/mp4"
-    elif ext == ".avi":
-        mimetype = "video/avi"   # MJPEG AVI — Chrome/Firefox handle this
-    else:
-        mimetype = "video/octet-stream"
-
+    mimetype = {"mp4": "video/mp4", "avi": "video/avi"}.get(ext.lstrip("."), "video/octet-stream")
     file_size = os.path.getsize(path)
     range_header = request.headers.get("Range")
 
@@ -126,11 +152,9 @@ def serve_video(path):
         start = int(byte_range[0])
         end = int(byte_range[1]) if byte_range[1] else file_size - 1
         length = end - start + 1
-
         with open(path, "rb") as f:
             f.seek(start)
             data = f.read(length)
-
         resp = Response(data, 206, mimetype=mimetype, direct_passthrough=True)
         resp.headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
         resp.headers["Accept-Ranges"] = "bytes"
@@ -143,7 +167,6 @@ def serve_video(path):
     return resp
 
 
-# ── Session video replay ──────────────────────────────────────
 @app.route("/sessions/<session_id>/video")
 def session_video(session_id):
     session = get_session(session_id)
@@ -155,7 +178,6 @@ def session_video(session_id):
     return serve_video(path)
 
 
-# ── Serve original uploaded file ──────────────────────────────
 @app.route("/sessions/<session_id>/upload")
 def session_upload(session_id):
     session = get_session(session_id)
@@ -170,31 +192,32 @@ def session_upload(session_id):
 # ── WebSocket — live stream ───────────────────────────────────
 @sock.route("/ws/stream")
 def websocket_stream(ws):
-    # First message: {"action":"start","batch_id":"...","operator_id":"...","camera_index":0}
     try:
         init = json.loads(ws.receive())
     except Exception:
         return
 
-    batch_id     = init.get("batch_id", "BATCH-001")
-    operator_id  = init.get("operator_id", "OP-001")
+    if init.get("action") != "start":
+        ws.send(json.dumps({"error": "First message must have action=start"}))
+        return
+
+    batch_id     = (init.get("batch_id") or "").strip().upper()
+    operator_id  = (init.get("operator_id") or "").strip()
     camera_index = int(init.get("camera_index", 0))
-    video_path   = init.get("video_path", None)   # set if using uploaded video
+    video_path   = init.get("video_path", None)
 
-    source_type  = "upload" if video_path else "live"
-    session_id   = create_session(batch_id, operator_id, source_type, video_path)
+    # Validate batch ID before creating session
+    err = _validate_batch_id(batch_id)
+    if err:
+        ws.send(json.dumps({"error": err}))
+        return
 
-    # Load YOLO counter if model exists
-    counter = None
-    try:
-        from detection import BoxCounter
-        counter = BoxCounter(MODEL_PATH)
-    except Exception as e:
-        print(f"[WARN] No model loaded: {e}")
+    source_type = "upload" if video_path else "live"
+    session_id  = create_session(batch_id, operator_id, source_type, video_path)
 
+    counter  = _counter
     recorder = VideoRecorder(session_id, fps=10, resolution=(FRAME_WIDTH, FRAME_HEIGHT))
 
-    # Open video file or camera
     source = video_path if video_path else camera_index
     cap = cv2.VideoCapture(source)
     if not video_path:
@@ -202,16 +225,17 @@ def websocket_stream(ws):
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
     if not cap.isOpened():
-        ws.send(json.dumps({"error": "Cannot open camera"}))
+        ws.send(json.dumps({"error": "Cannot open video source"}))
         end_session(session_id, 0, None)
         return
 
+    ws.send(json.dumps({"session_id": session_id, "session_active": True, "count": 0, "frame": ""}))
+
     frame_num = 0
-    count = 0
-    running = True
+    count     = 0
 
     try:
-        while running and ws.connected:
+        while ws.connected:
             ret, frame = cap.read()
             if not ret:
                 break
@@ -226,34 +250,41 @@ def websocket_stream(ws):
                     avg_conf = float(np.mean(confidences)) if confidences else 0.0
                     log_detection(session_id, count, avg_conf)
             else:
-                cv2.putText(frame, "Waiting for model...", (10, 30),
+                cv2.putText(frame, "No model loaded", (10, 30),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
             recorder.write(frame)
 
+            if not ws.connected:
+                break
+
             _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
-            ws.send(json.dumps({
-                "frame": base64.b64encode(buf).decode(),
-                "count": count,
-                "session_active": True,
-                "session_id": session_id,
-            }))
+            try:
+                ws.send(json.dumps({
+                    "frame": base64.b64encode(buf).decode(),
+                    "count": count,
+                    "session_active": True,
+                    "session_id": session_id,
+                }))
+            except Exception:
+                break
 
     except Exception as e:
         print(f"[WS] Stream ended: {e}")
     finally:
         cap.release()
-        video_path = recorder.stop()
-        end_session(session_id, count, video_path)
+        saved_path = recorder.stop()
+        end_session(session_id, count, saved_path)
         try:
-            ws.send(json.dumps({
-                "frame": "", "count": count,
-                "session_active": False,
-                "session_id": session_id,
-            }))
+            if ws.connected:
+                ws.send(json.dumps({
+                    "frame": "", "count": count,
+                    "session_active": False,
+                    "session_id": session_id,
+                }))
         except Exception:
             pass
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)

@@ -19,7 +19,7 @@ export default function Header() {
         <div className="w-7 h-7 bg-sky-600 rounded-lg flex items-center justify-center">
           <Package size={14} className="text-white" />
         </div>
-        <span className="text-sm font-bold text-white tracking-tight">Warehouse Counter</span>
+        <span className="text-sm font-bold text-white tracking-tight">WAREgaurd</span>
       </div>
 
       {/* Live session indicator — visible on all pages */}

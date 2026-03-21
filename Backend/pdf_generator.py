@@ -119,7 +119,7 @@ def _draw_header(c, session, qr_buf, y_top):
     # Brand name
     c.setFillColor(WHITE)
     c.setFont("Helvetica-Bold", 22)
-    c.drawString(x0 + 16, y0 + hh - 30, "BoxTrack")
+    c.drawString(x0 + 16, y0 + hh - 30, "WAREgaurd")
 
     # Subtitle
     c.setFillColor(ACCENT)
@@ -219,7 +219,7 @@ def _draw_details(c, session, y_top):
     desc = (
         f"This challan certifies that packing session {sid} was conducted by operator "
         f"{operator} under batch {batch}. The session commenced at {started} and concluded "
-        f"at {ended}, with a total duration of {dur}. The AI-powered BoxTrack system "
+        f"at {ended}, with a total duration of {dur}. The AI-powered WAREgaurd system "
         f"detected a final count of {count} box{'es' if count != 1 else ''} using "
         f"{source}. Session status: {status.upper()}."
     )
@@ -384,8 +384,8 @@ def _draw_footer(c, session, has_qr):
 
     c.setFillColor(MUTED)
     c.setFont("Helvetica", 7)
-    qr_note = "  ·  Scan QR to open session in BoxTrack" if has_qr else ""
-    c.drawCentredString(W / 2, 0.9 * cm, f"BoxTrack Warehouse Management System{qr_note}")
+    qr_note = "  ·  Scan QR to open session in WAREgaurd" if has_qr else ""
+    c.drawCentredString(W / 2, 0.9 * cm, f"WAREgaurd Warehouse Management System{qr_note}")
     c.drawCentredString(W / 2, 0.4 * cm, f"Session ID: {sid}  ·  CONFIDENTIAL — For internal use only")
 
 
@@ -409,9 +409,9 @@ def generate_challan(session: dict, logs: list) -> str:
     qr_buf = _qr_buf(session_url)
 
     c = canvas.Canvas(output_path, pagesize=A4)
-    c.setTitle(f"BoxTrack Challan — {session.get('batch_id', session_id)}")
-    c.setAuthor("BoxTrack System")
-    c.setSubject("Warehouse Packing Challan")
+    c.setTitle(f"WAREgaurd Challan — {session.get('batch_id', session_id)}")
+    c.setAuthor("WAREgaurd System")
+    c.setSubject("WAREgaurd Packing Challan")
 
     y = H - M
     y = _draw_header(c, session, qr_buf, y)

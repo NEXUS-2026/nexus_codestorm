@@ -1,4 +1,4 @@
-from pymongo import MongoClient, DESCENDING
+﻿from pymongo import MongoClient, DESCENDING
 from bson import ObjectId
 from datetime import datetime, timezone
 from dotenv import load_dotenv
@@ -17,6 +17,11 @@ logs_col = db["detection_logs"]
 
 
 # ── Sessions ──────────────────────────────────────────────────
+
+def batch_id_exists(batch_id: str) -> bool:
+    """Check if a batch_id already exists in any session."""
+    return sessions_col.find_one({"batch_id": batch_id}) is not None
+
 
 def create_session(batch_id: str, operator_id: str, source_type: str = "live", upload_path: str = None) -> str:
     doc = {

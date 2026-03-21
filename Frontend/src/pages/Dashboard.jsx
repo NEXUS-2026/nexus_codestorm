@@ -1,8 +1,11 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Play, Square, RotateCcw, Camera, User, Hash, Box, Package, Upload, Video, BarChart2, List } from 'lucide-react'
 import { useSession } from '../context/SessionContext'
 import { getSessions, uploadVideo } from '../api'
+import axios from 'axios'
+
+const BATCH_RE = /^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*-\d+$/
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -12,24 +15,55 @@ export default function Dashboard() {
   const [videoFile, setVideoFile]     = useState(null)
   const [uploading, setUploading]     = useState(false)
   const [sessions, setSessions]       = useState([])
+  const [batchError, setBatchError]   = useState('')
+  const [batchChecking, setBatchChecking] = useState(false)
   const imgRef = useRef(null)
+  const batchDebounce = useRef(null)
 
   const fetchSessions = () =>
     getSessions().then(({ data }) => setSessions(data)).catch(() => {})
 
   const { status, count, error, start, stop, reset, setOnFrame, setOnSessionEnd } = useSession()
 
-  // Register callbacks — update refs without recreating the socket
   useEffect(() => {
     setOnFrame((f) => { if (imgRef.current) imgRef.current.src = `data:image/jpeg;base64,${f}` })
     setOnSessionEnd(fetchSessions)
   }, [setOnFrame, setOnSessionEnd])
 
+  // Auto-uppercase + debounced duplicate check
+  const handleBatchChange = useCallback((raw) => {
+    const val = raw.toUpperCase()
+    setBatchId(val)
+    setBatchError('')
+    clearTimeout(batchDebounce.current)
+
+    if (!val) return
+
+    if (!BATCH_RE.test(val)) {
+      setBatchError('Format must be WORD-NUMBER, e.g. BATCH-001')
+      return
+    }
+
+    // Check duplicate against backend
+    setBatchChecking(true)
+    batchDebounce.current = setTimeout(async () => {
+      try {
+        await axios.post('http://localhost:5000/validate/batch', { batch_id: val })
+        setBatchError('')
+      } catch (e) {
+        setBatchError(e.response?.data?.error || 'Invalid batch ID')
+      } finally {
+        setBatchChecking(false)
+      }
+    }, 400)
+  }, [])
+
   const isIdle    = status === 'idle'
   const isRunning = status === 'running'
   const isStopped = status === 'stopped'
 
-  const canStart = batchId.trim() && operatorId.trim() && (source === 'camera' || videoFile)
+  const batchValid = BATCH_RE.test(batchId) && !batchError && !batchChecking
+  const canStart = batchValid && operatorId.trim() && (source === 'camera' || videoFile)
 
   const handleStart = async () => {
     if (source === 'video' && videoFile) {
@@ -70,12 +104,23 @@ export default function Dashboard() {
             <label className="text-xs text-gray-400 font-medium flex items-center gap-1.5">
               <Hash size={11} className="text-gray-500" /> Batch ID
             </label>
-            <input
-              autoFocus
-              placeholder="e.g. BATCH-001"
-              className="bg-gray-950 border border-gray-800 focus:border-sky-600 rounded-xl px-4 py-2.5 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-700"
-              value={batchId} onChange={e => setBatchId(e.target.value)}
-            />
+            <div className="relative">
+              <input
+                autoFocus
+                placeholder="e.g. BATCH-001"
+                className={`w-full bg-gray-950 border rounded-xl px-4 py-2.5 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-700 uppercase
+                  ${batchError ? 'border-red-600 focus:border-red-500' : batchValid && batchId ? 'border-green-700 focus:border-green-600' : 'border-gray-800 focus:border-sky-600'}`}
+                value={batchId}
+                onChange={e => handleBatchChange(e.target.value)}
+              />
+              {batchChecking && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-gray-600 border-t-sky-500 rounded-full animate-spin" />
+              )}
+            </div>
+            {batchError
+              ? <p className="text-xs text-red-400">{batchError}</p>
+              : <p className="text-xs text-gray-600">Uppercase only · format: WORD-NUMBER (e.g. BATCH-001)</p>
+            }
           </div>
 
           <div className="flex flex-col gap-1.5">

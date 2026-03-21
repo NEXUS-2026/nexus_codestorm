@@ -33,7 +33,7 @@ export default function useWebSocket() {
       const data = JSON.parse(e.data)
       if (data.error) { setError(data.error); setStatus(STATUS.IDLE); return }
       if (data.session_id) setSessionId(data.session_id)
-      setCount(data.count ?? 0)
+      if (data.count !== undefined) setCount(data.count)
       if (data.frame) onFrameRef.current?.(data.frame)
       if (!data.session_active) {
         setStatus(STATUS.STOPPED)
@@ -42,12 +42,14 @@ export default function useWebSocket() {
     }
 
     ws.onerror = () => {
-      setError('Cannot connect to backend on port 5000.')
-      setStatus(STATUS.IDLE)
+      // Only show error if we didn't intentionally stop
+      setStatus(prev => {
+        if (prev === STATUS.RUNNING) setError('Connection lost.')
+        return prev === STATUS.RUNNING ? STATUS.IDLE : prev
+      })
     }
 
     ws.onclose = () => {
-      // Only mark stopped if we were still running (not already stopped by user)
       setStatus(prev => prev === STATUS.RUNNING ? STATUS.STOPPED : prev)
     }
   }, [])
