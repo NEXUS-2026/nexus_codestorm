@@ -14,10 +14,11 @@ from src.detector import detect_boxes
 from src.tracker import CentroidTracker
 from src.counter import get_stable_count, is_inside_roi
 from src.utils import draw_overlay, get_centroid
+from src.utils import preprocess_frame
 
 # Config
 confidence_threshold = float(os.getenv("CONFIDENCE_THRESHOLD", 0.5))
-max_disappeared = int(os.getenv("MAX_DISAPPEARED", 10))
+max_disappeared = int(os.getenv("MAX_DISAPPEARED", 15))
 max_distance = int(os.getenv("MAX_DISTANCE", 60))
 
 try:
