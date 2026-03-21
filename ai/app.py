@@ -15,6 +15,7 @@ from src.detector import detect_boxes
 from src.tracker import CentroidTracker
 from src.counter import get_stable_count, is_inside_roi
 from src.utils import encode_frame_to_jpeg, draw_overlay, get_centroid
+from src.utils import preprocess_frame
 
 load_dotenv()
 
@@ -57,6 +58,7 @@ def update_config():
 
 def process_frame(frame):
     global tracker
+    frame = preprocess_frame(frame)
     boxes = detect_boxes(frame, confidence_threshold)
     roi_boxes = []
     
