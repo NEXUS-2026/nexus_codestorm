@@ -19,7 +19,6 @@ export default function LandingNav() {
   const navLinks = [
     { label: 'Features', href: '#features' },
     { label: 'How It Works', href: '#how-it-works' },
-    { label: 'Dashboard', onClick: () => navigate('/dashboard') },
   ]
 
   const handleNavClick = (link) => {
@@ -91,10 +90,21 @@ export default function LandingNav() {
               <motion.button
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.5 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/login')}
+                className="px-5 py-2.5 text-gray-300 hover:text-white font-semibold text-sm transition-colors"
+              >
+                Sign In
+              </motion.button>
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.6 }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/signup')}
                 className="group relative px-6 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 rounded-xl font-semibold text-sm overflow-hidden"
               >
                 <span className="relative z-10 flex items-center gap-2">
@@ -147,8 +157,23 @@ export default function LandingNav() {
               <motion.button
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+                onClick={() => {
+                  navigate('/login')
+                  setMobileMenuOpen(false)
+                }}
+                className="w-full px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl font-semibold text-sm text-gray-300 hover:text-white transition-colors"
+              >
+                Sign In
+              </motion.button>
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.4 }}
-                onClick={() => navigate('/dashboard')}
+                onClick={() => {
+                  navigate('/signup')
+                  setMobileMenuOpen(false)
+                }}
                 className="w-full px-6 py-3 bg-gradient-to-r from-sky-500 to-blue-600 rounded-xl font-semibold text-sm flex items-center justify-center gap-2"
               >
                 <Sparkles size={14} />

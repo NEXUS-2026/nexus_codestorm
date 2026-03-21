@@ -18,13 +18,18 @@ logs_col = db["detection_logs"]
 
 # ── Sessions ──────────────────────────────────────────────────
 
-def batch_id_exists(batch_id: str) -> bool:
-    """Check if a batch_id already exists in any session."""
-    return sessions_col.find_one({"batch_id": batch_id}) is not None
+def batch_id_exists(batch_id: str, user_id: str = None) -> bool:
+    """Check if a batch_id already exists for a specific user."""
+    query = {"batch_id": batch_id}
+    if user_id:
+        query["user_id"] = user_id
+    return sessions_col.find_one(query) is not None
 
 
-def create_session(batch_id: str, operator_id: str, source_type: str = "live", upload_path: str = None) -> str:
+def create_session(batch_id: str, operator_id: str, user_id: str, source_type: str = "live", upload_path: str = None) -> str:
+    """Create a new session for a specific user."""
     doc = {
+        "user_id": user_id,  # Link session to user
         "batch_id": batch_id,
         "operator_id": operator_id,
         "started_at": datetime.now(timezone.utc),
@@ -40,6 +45,7 @@ def create_session(batch_id: str, operator_id: str, source_type: str = "live", u
 
 
 def end_session(session_id: str, final_count: int, video_path: str):
+    """End a session."""
     sessions_col.update_one(
         {"_id": ObjectId(session_id)},
         {"$set": {
@@ -51,16 +57,25 @@ def end_session(session_id: str, final_count: int, video_path: str):
     )
 
 
-def get_session(session_id: str) -> dict:
-    doc = sessions_col.find_one({"_id": ObjectId(session_id)})
+def get_session(session_id: str, user_id: str = None) -> dict:
+    """Get a session by ID, optionally filtered by user."""
+    query = {"_id": ObjectId(session_id)}
+    if user_id:
+        query["user_id"] = user_id
+    doc = sessions_col.find_one(query)
     if doc:
         doc["_id"] = str(doc["_id"])
     return doc
 
 
-def list_sessions(limit: int = 200) -> list:
+def list_sessions(user_id: str = None, limit: int = 200) -> list:
+    """List sessions, optionally filtered by user."""
+    query = {}
+    if user_id:
+        query["user_id"] = user_id
+    
     results = []
-    for doc in sessions_col.find().sort("started_at", DESCENDING).limit(limit):
+    for doc in sessions_col.find(query).sort("started_at", DESCENDING).limit(limit):
         doc["_id"] = str(doc["_id"])
         results.append(doc)
     return results
@@ -69,6 +84,7 @@ def list_sessions(limit: int = 200) -> list:
 # ── Detection Logs ────────────────────────────────────────────
 
 def log_detection(session_id: str, box_count: int, confidence: float):
+    """Log a detection event for a session."""
     logs_col.insert_one({
         "session_id": ObjectId(session_id),
         "timestamp": datetime.now(timezone.utc),
@@ -78,6 +94,7 @@ def log_detection(session_id: str, box_count: int, confidence: float):
 
 
 def get_logs_for_session(session_id: str) -> list:
+    """Get all detection logs for a session."""
     results = []
     for doc in logs_col.find({"session_id": ObjectId(session_id)}).sort("timestamp", 1):
         doc["_id"] = str(doc["_id"])
@@ -86,18 +103,27 @@ def get_logs_for_session(session_id: str) -> list:
     return results
 
 
-def delete_session(session_id: str) -> bool:
+def delete_session(session_id: str, user_id: str = None) -> bool:
     """Delete a session and all its detection logs. Returns True if session existed."""
-    result = sessions_col.delete_one({"_id": ObjectId(session_id)})
+    query = {"_id": ObjectId(session_id)}
+    if user_id:
+        query["user_id"] = user_id
+    
+    result = sessions_col.delete_one(query)
     logs_col.delete_many({"session_id": ObjectId(session_id)})
     return result.deleted_count > 0
 
 
 # ── Operator Stats ────────────────────────────────────────────
 
-def get_operator_stats() -> list:
+def get_operator_stats(user_id: str = None) -> list:
+    """Get operator statistics, optionally filtered by user."""
+    match_stage = {"status": "completed"}
+    if user_id:
+        match_stage["user_id"] = user_id
+    
     pipeline = [
-        {"$match": {"status": "completed"}},
+        {"$match": match_stage},
         {"$group": {
             "_id": "$operator_id",
             "total_sessions": {"$sum": 1},

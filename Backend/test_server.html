@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Server Test</title>
+</head>
+<body>
+    <h1>Backend Server Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        const results = document.getElementById('results');
+        
+        // Test 1: Health check
+        results.innerHTML += '<h2>Test 1: Health Check</h2>';
+        fetch('http://localhost:5000/health')
+            .then(r => r.json())
+            .then(data => {
+                results.innerHTML += `<p style="color: green;">✓ Server is running: ${JSON.stringify(data)}</p>`;
+                
+                // Test 2: Auth signup endpoint
+                results.innerHTML += '<h2>Test 2: Auth Signup Endpoint</h2>';
+                return fetch('http://localhost:5000/auth/signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: 'test@example.com',
+                        password: 'Test123!@#',
+                        warehouse_name: 'Test Warehouse',
+                        warehouse_location: 'Test City',
+                        contact_name: 'Test User'
+                    })
+                });
+            })
+            .then(r => r.json())
+            .then(data => {
+                results.innerHTML += `<p style="color: green;">✓ Auth endpoint responded: ${JSON.stringify(data)}</p>`;
+            })
+            .catch(err => {
+                results.innerHTML += `<p style="color: red;">✗ Error: ${err.message}</p>`;
+                results.innerHTML += `<p>Make sure the backend server is running on port 5000</p>`;
+            });
+    </script>
+</body>
+</html>

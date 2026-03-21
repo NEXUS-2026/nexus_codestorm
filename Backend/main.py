@@ -16,12 +16,73 @@ from database import (
     list_sessions, log_detection, get_logs_for_session,
     get_operator_stats, delete_session, batch_id_exists,
 )
+
+# Try to import auth module, but don't fail if dependencies are missing
+try:
+    from auth import create_user, login_user, verify_token, get_user_by_id
+    AUTH_ENABLED = True
+    print("[main] ✓ Authentication module loaded successfully")
+except ImportError as e:
+    AUTH_ENABLED = False
+    print(f"[main] ⚠ Authentication disabled - missing dependencies: {e}")
+    print("[main] Run: pip install bcrypt pyjwt")
+
 from video_recorder import VideoRecorder
 from pdf_generator import generate_challan
 from detection import BoxCounter
 
+
+# ── Authentication Middleware ─────────────────────────────────
+def get_current_user_id():
+    """Extract user_id from JWT token in Authorization header."""
+    if not AUTH_ENABLED:
+        return None
+    
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    
+    token = auth_header.replace("Bearer ", "")
+    try:
+        payload = verify_token(token)
+        return payload.get("user_id")
+    except:
+        return None
+
+
+def require_auth():
+    """Decorator to require authentication for routes."""
+    if not AUTH_ENABLED:
+        return jsonify({"error": "Authentication not enabled"}), 503
+    
+    user_id = get_current_user_id()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    return None  # Auth successful
+
 app = Flask(__name__)
-CORS(app, origins="*", methods=["GET", "POST", "DELETE", "OPTIONS"], allow_headers=["Content-Type"])
+
+# Configure CORS with explicit settings
+CORS(app, 
+     resources={r"/*": {
+         "origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+         "methods": ["GET", "POST", "DELETE", "OPTIONS", "PUT", "PATCH"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "expose_headers": ["Content-Type", "Authorization"],
+         "supports_credentials": True,
+         "max_age": 3600
+     }})
+
+# Add after_request handler for additional CORS headers
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
 sock = Sock(app)
 
 MODEL_PATH   = os.path.join(os.path.dirname(__file__), os.getenv("MODEL_PATH", "models/best.pt"))
@@ -67,32 +128,209 @@ def health():
     return jsonify({"status": "ok"})
 
 
+# ── Authentication ────────────────────────────────────────────
+@app.route("/auth/signup", methods=["POST", "OPTIONS"])
+def signup():
+    print(f"[signup] Received {request.method} request")
+    print(f"[signup] Headers: {dict(request.headers)}")
+    
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        print("[signup] Handling OPTIONS preflight")
+        response = jsonify({"status": "ok"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 200
+    
+    print("[signup] Handling POST request")
+    
+    if not AUTH_ENABLED:
+        print("[signup] Auth not enabled")
+        return jsonify({"success": False, "error": "Authentication module not available. Install bcrypt and pyjwt."}), 503
+    
+    try:
+        data = request.get_json() or {}
+        print(f"[signup] Received data: {data}")
+        
+        email = data.get("email", "").strip()
+        password = data.get("password", "")
+        warehouse_name = data.get("warehouse_name", "").strip()
+        warehouse_location = data.get("warehouse_location", "").strip()
+        contact_name = data.get("contact_name", "").strip()
+        contact_phone = data.get("contact_phone", "").strip()
+        
+        print(f"[signup] Creating user: {email}")
+        success, message, user_data = create_user(
+            email, password, warehouse_name, warehouse_location,
+            contact_name, contact_phone
+        )
+        
+        if success:
+            print(f"[signup] User created successfully: {email}")
+            return jsonify({"success": True, "message": message, "user": user_data}), 201
+        else:
+            print(f"[signup] User creation failed: {message}")
+            return jsonify({"success": False, "error": message}), 400
+    except Exception as e:
+        print(f"[signup] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/auth/login", methods=["POST", "OPTIONS"])
+def login():
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response, 200
+    
+    if not AUTH_ENABLED:
+        return jsonify({"success": False, "error": "Authentication module not available. Install bcrypt and pyjwt."}), 503
+    
+    try:
+        data = request.get_json() or {}
+        
+        email = data.get("email", "").strip()
+        password = data.get("password", "")
+        
+        if not email or not password:
+            return jsonify({"success": False, "error": "Email and password are required"}), 400
+        
+        success, message, user_data = login_user(email, password)
+        
+        if success:
+            return jsonify({"success": True, "message": message, "user": user_data}), 200
+        else:
+            return jsonify({"success": False, "error": message}), 401
+    except Exception as e:
+        print(f"[login] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/auth/verify", methods=["GET", "OPTIONS"])
+def verify():
+    """Verify JWT token and return user data"""
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response, 200
+    
+    if not AUTH_ENABLED:
+        return jsonify({"success": False, "error": "Authentication module not available"}), 503
+    
+    try:
+        auth_header = request.headers.get("Authorization", "")
+        
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"success": False, "error": "No token provided"}), 401
+        
+        token = auth_header.replace("Bearer ", "")
+        
+        payload = verify_token(token)
+        user = get_user_by_id(payload["user_id"])
+        
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+        
+        return jsonify({"success": True, "user": user}), 200
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 401
+    except Exception as e:
+        print(f"[verify] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/auth/me", methods=["GET", "OPTIONS"])
+def get_current_user():
+    """Get current user profile"""
+    # Handle preflight request
+    if request.method == "OPTIONS":
+        response = jsonify({"status": "ok"})
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response, 200
+    
+    if not AUTH_ENABLED:
+        return jsonify({"success": False, "error": "Authentication module not available"}), 503
+    
+    try:
+        auth_header = request.headers.get("Authorization", "")
+        
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"success": False, "error": "No token provided"}), 401
+        
+        token = auth_header.replace("Bearer ", "")
+        
+        payload = verify_token(token)
+        user = get_user_by_id(payload["user_id"])
+        
+        if not user:
+            return jsonify({"success": False, "error": "User not found"}), 404
+        
+        return jsonify({"success": True, "user": user}), 200
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 401
+    except Exception as e:
+        print(f"[get_current_user] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ── Batch ID validation ───────────────────────────────────────
 @app.route("/validate/batch", methods=["POST"])
 def validate_batch():
+    user_id = get_current_user_id()
     data = request.get_json() or {}
     batch_id = (data.get("batch_id") or "").strip().upper()
-    err = _validate_batch_id(batch_id)
-    if err:
-        return jsonify({"valid": False, "error": err}), 400
+    
+    if not batch_id:
+        return jsonify({"valid": False, "error": "Batch ID is required."}), 400
+    
+    if not BATCH_ID_RE.match(batch_id):
+        return jsonify({"valid": False, "error": "Batch ID must be uppercase in format WORD-NUMBER (e.g. BATCH-001)."}), 400
+    
+    # Check if batch_id exists for this user
+    if batch_id_exists(batch_id, user_id):
+        return jsonify({"valid": False, "error": f"Batch ID '{batch_id}' already exists. Use a unique batch ID."}), 400
+    
     return jsonify({"valid": True})
 
 
 # ── Sessions ──────────────────────────────────────────────────
 @app.route("/sessions")
 def get_sessions():
-    return jsonify(list_sessions())
+    """Get all sessions for the authenticated user."""
+    user_id = get_current_user_id()
+    return jsonify(list_sessions(user_id))
 
 
 @app.route("/sessions/<session_id>", methods=["GET", "DELETE"])
 def session_detail(session_id):
-    session = get_session(session_id)
+    """Get or delete a specific session (user-scoped)."""
+    user_id = get_current_user_id()
+    session = get_session(session_id, user_id)
+    
     if not session:
         return jsonify({"error": "Session not found"}), 404
 
     if request.method == "GET":
         return jsonify(session)
 
+    # DELETE
     if session.get("video_path") and os.path.exists(session["video_path"]):
         try: os.remove(session["video_path"])
         except Exception: pass
@@ -104,20 +342,31 @@ def session_detail(session_id):
         try: os.remove(challan_path)
         except Exception: pass
 
-    delete_session(session_id)
+    delete_session(session_id, user_id)
     return jsonify({"deleted": session_id})
 
 
 @app.route("/sessions/<session_id>/logs")
 def get_session_logs(session_id):
+    """Get logs for a specific session (user-scoped)."""
+    user_id = get_current_user_id()
+    session = get_session(session_id, user_id)
+    
+    if not session:
+        return jsonify({"error": "Session not found"}), 404
+    
     return jsonify(get_logs_for_session(session_id))
 
 
 @app.route("/sessions/<session_id>/challan", methods=["POST"])
 def download_challan(session_id):
-    session = get_session(session_id)
+    """Generate and download challan for a session (user-scoped)."""
+    user_id = get_current_user_id()
+    session = get_session(session_id, user_id)
+    
     if not session:
         return jsonify({"error": "Session not found"}), 404
+    
     logs = get_logs_for_session(session_id)
     pdf_path = generate_challan(session, logs)
     return send_file(pdf_path, mimetype="application/pdf",
@@ -127,7 +376,9 @@ def download_challan(session_id):
 
 @app.route("/stats/operators")
 def operator_stats():
-    return jsonify(get_operator_stats())
+    """Get operator statistics for the authenticated user."""
+    user_id = get_current_user_id()
+    return jsonify(get_operator_stats(user_id))
 
 
 # ── Upload video ──────────────────────────────────────────────
@@ -205,43 +456,63 @@ def _mjpeg_stream(path):
 
 @app.route("/sessions/<session_id>/video")
 def session_video(session_id):
-    session = get_session(session_id)
+    """Serve video for a session (user-scoped)."""
+    user_id = get_current_user_id()
+    session = get_session(session_id, user_id)
+    
     if not session or not session.get("video_path"):
         return jsonify({"error": "Video not found"}), 404
+    
     path = session["video_path"]
     if not os.path.exists(path):
         return jsonify({"error": "Video file missing"}), 404
+    
     return serve_video(path)
 
 @app.route("/sessions/<session_id>/video/stream")
 def session_video_stream(session_id):
-    session = get_session(session_id)
+    """Stream video for a session (user-scoped)."""
+    user_id = get_current_user_id()
+    session = get_session(session_id, user_id)
+    
     if not session or not session.get("video_path"):
         return jsonify({"error": "Video not found"}), 404
+    
     path = session["video_path"]
     if not os.path.exists(path):
         return jsonify({"error": "Video file missing"}), 404
+    
     return _mjpeg_stream(path)
 
 
 @app.route("/sessions/<session_id>/upload")
 def session_upload(session_id):
-    session = get_session(session_id)
+    """Serve uploaded file for a session (user-scoped)."""
+    user_id = get_current_user_id()
+    session = get_session(session_id, user_id)
+    
     if not session or not session.get("upload_path"):
         return jsonify({"error": "No uploaded file for this session"}), 404
+    
     path = session["upload_path"]
     if not os.path.exists(path):
         return jsonify({"error": "Uploaded file missing"}), 404
+    
     return serve_video(path)
 
 @app.route("/sessions/<session_id>/upload/stream")
 def session_upload_stream(session_id):
-    session = get_session(session_id)
+    """Stream uploaded file for a session (user-scoped)."""
+    user_id = get_current_user_id()
+    session = get_session(session_id, user_id)
+    
     if not session or not session.get("upload_path"):
         return jsonify({"error": "No uploaded file for this session"}), 404
+    
     path = session["upload_path"]
     if not os.path.exists(path):
         return jsonify({"error": "Uploaded file missing"}), 404
+    
     return _mjpeg_stream(path)
 
 
@@ -262,14 +533,24 @@ def websocket_stream(ws):
     camera_index = int(init.get("camera_index", 0))
     video_path   = init.get("video_path", None)
     confidence   = float(init.get("confidence", 0.35))  # Default 35% if not provided
+    user_id      = init.get("user_id", None)  # Get user_id from WebSocket init message
 
-    err = _validate_batch_id(batch_id)
-    if err:
-        ws.send(json.dumps({"error": err}))
+    # Validate batch_id format
+    if not batch_id:
+        ws.send(json.dumps({"error": "Batch ID is required."}))
+        return
+    
+    if not BATCH_ID_RE.match(batch_id):
+        ws.send(json.dumps({"error": "Batch ID must be uppercase in format WORD-NUMBER (e.g. BATCH-001)."}))
+        return
+    
+    # Check if batch_id already exists for this user
+    if batch_id_exists(batch_id, user_id):
+        ws.send(json.dumps({"error": f"Batch ID '{batch_id}' already exists. Use a unique batch ID."}))
         return
 
     source_type = "upload" if video_path else "live"
-    session_id  = create_session(batch_id, operator_id, source_type, video_path)
+    session_id  = create_session(batch_id, operator_id, user_id, source_type, video_path)
 
     # Create a new counter instance for this session with the specified confidence
     counter = None

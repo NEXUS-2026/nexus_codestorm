@@ -8,8 +8,8 @@ export default function useWebSocket() {
   const [count, setCount]         = useState(0)
   const [sessionId, setSessionId] = useState(null)
   const [error, setError]         = useState(null)
+  
   const wsRef      = useRef(null)
-  // Callback refs — updated by Dashboard without recreating the socket
   const onFrameRef      = useRef(null)
   const onSessionEndRef = useRef(null)
 
@@ -22,7 +22,16 @@ export default function useWebSocket() {
     wsRef.current = ws
 
     ws.onopen = () => {
-      const payload = { action: 'start', batch_id: batchId, operator_id: operatorId }
+      // Get user data from localStorage
+      const userData = localStorage.getItem('user')
+      const user = userData ? JSON.parse(userData) : null
+      
+      const payload = { 
+        action: 'start', 
+        batch_id: batchId, 
+        operator_id: operatorId,
+        user_id: user?.user_id || null  // Include user_id in WebSocket message
+      }
       if (videoPath) payload.video_path = videoPath
       else payload.camera_index = cameraIndex ?? 0
       if (confidence !== undefined) payload.confidence = confidence

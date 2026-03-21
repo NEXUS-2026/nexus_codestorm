@@ -28,19 +28,19 @@ export default function Dashboard() {
   const imgRef = useRef(null)
   const batchDebounce = useRef(null)
 
-  const fetchSessions = () =>
-    getSessions().then(({ data }) => setSessions(data)).catch(() => {})
-
   const { status, count, error, start, stop, reset, setOnFrame, setOnSessionEnd } = useSession()
 
   const isIdle    = status === 'idle'
   const isRunning = status === 'running'
   const isStopped = status === 'stopped'
 
+  const fetchSessions = useCallback(() =>
+    getSessions().then(({ data }) => setSessions(data)).catch(() => {}), [])
+
   useEffect(() => {
     setOnFrame((f) => { if (imgRef.current) imgRef.current.src = `data:image/jpeg;base64,${f}` })
     setOnSessionEnd(fetchSessions)
-  }, [setOnFrame, setOnSessionEnd])
+  }, [setOnFrame, setOnSessionEnd, fetchSessions])
 
   // Send confidence threshold to backend when it changes during a session
   useEffect(() => {
@@ -82,7 +82,7 @@ export default function Dashboard() {
   const batchValid = BATCH_RE.test(batchId) && !batchError && !batchChecking
   const canStart = batchValid && operatorId.trim() && (source === 'camera' || videoFile)
 
-  const handleStart = async () => {
+  const handleStart = useCallback(async () => {
     if (source === 'video' && videoFile) {
       setUploading(true)
       try {
@@ -96,7 +96,7 @@ export default function Dashboard() {
     } else {
       start({ batchId, operatorId, cameraIndex: 0, confidence: confidence / 100 })
     }
-  }
+  }, [source, videoFile, batchId, operatorId, confidence, start])
 
   // Stats calculations for the mockup block
   const totalSessions = sessions.length
