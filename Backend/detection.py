@@ -8,6 +8,7 @@ Duplicate/overlapping detections are suppressed via NMS (IoU threshold).
 import os
 import cv2
 import numpy as np
+from tracker import CentroidTracker
 
 CONF_THRESHOLD = 0.35
 NMS_IOU        = 0.40   # boxes with IoU > this are considered duplicates and merged
@@ -90,6 +91,8 @@ class BoxCounter:
         self._confs  = []
         self._labels = []
         self._confidence_threshold = CONF_THRESHOLD  # Store current threshold
+        self._tracker = CentroidTracker()
+
 
     def set_confidence(self, confidence: float):
         """Update the confidence threshold dynamically"""
@@ -159,7 +162,8 @@ class BoxCounter:
         self._boxes  = boxes
         self._confs  = confs
         self._labels = labels
-        return len(boxes), confs
+        self._tracker.update(boxes)
+        return self._tracker.next_object_id, confs
 
     def _process_v8(self, frame: np.ndarray) -> tuple:
         # Pass iou explicitly to YOLOv8 inference with dynamic confidence
@@ -182,7 +186,8 @@ class BoxCounter:
         self._boxes  = boxes
         self._confs  = confs
         self._labels = labels
-        return len(boxes), confs
+        self._tracker.update(boxes)
+        return self._tracker.next_object_id, confs
 
     def draw_overlay(self, frame: np.ndarray, count: int) -> np.ndarray:
         for (x1, y1, x2, y2), conf, label in zip(self._boxes, self._confs, self._labels):
@@ -194,11 +199,4 @@ class BoxCounter:
             cv2.putText(frame, text, (x1 + 3, y1 - 4),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.45, _TEXT_COLOR, 1, cv2.LINE_AA)
 
-        badge = f"Boxes: {count}"
-        (bw, bh), _ = cv2.getTextSize(badge, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-        pad = 8
-        cv2.rectangle(frame, (10, 10), (10 + bw + pad*2, 10 + bh + pad*2), _LABEL_BG, -1)
-        cv2.rectangle(frame, (10, 10), (10 + bw + pad*2, 10 + bh + pad*2), _BOX_COLOR, 1)
-        cv2.putText(frame, badge, (10 + pad, 10 + bh + pad),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, _BOX_COLOR, 2, cv2.LINE_AA)
         return frame

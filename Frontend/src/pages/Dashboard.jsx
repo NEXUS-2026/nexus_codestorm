@@ -12,13 +12,13 @@ const OPERATOR_RE = /^OP-\d{3,}$/
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [batchId, setBatchId]         = useState('')
-  const [operatorId, setOperatorId]   = useState('')
-  const [source, setSource]           = useState('camera')
-  const [videoFile, setVideoFile]     = useState(null)
-  const [uploading, setUploading]     = useState(false)
-  const [sessions, setSessions]       = useState([])
-  const [batchError, setBatchError]   = useState('')
+  const [batchId, setBatchId] = useState('')
+  const [operatorId, setOperatorId] = useState('')
+  const [source, setSource] = useState('camera')
+  const [videoFile, setVideoFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [batchError, setBatchError] = useState('')
   const [batchChecking, setBatchChecking] = useState(false)
   const [operatorError, setOperatorError] = useState('')
   const [operatorChecking, setOperatorChecking] = useState(false)
@@ -35,12 +35,12 @@ export default function Dashboard() {
 
   const { status, count, error, start, stop, reset, setOnFrame, setOnSessionEnd } = useSession()
 
-  const isIdle    = status === 'idle'
+  const isIdle = status === 'idle'
   const isRunning = status === 'running'
   const isStopped = status === 'stopped'
 
   const fetchSessions = useCallback(() =>
-    getSessions().then(({ data }) => setSessions(data)).catch(() => {}), [])
+    getSessions().then(({ data }) => setSessions(data)).catch(() => { }), [])
 
   useEffect(() => {
     setOnFrame((f) => { if (imgRef.current) imgRef.current.src = `data:image/jpeg;base64,${f}` })
@@ -178,9 +178,9 @@ export default function Dashboard() {
       {/* Background glowing orbs */}
       <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-sky-600/10 rounded-full blur-[120px] pointer-events-none animate-pulse duration-1000" />
       <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-indigo-600/10 rounded-full blur-[100px] pointer-events-none" />
-      
+
       <div className="w-full max-w-md relative z-10 animate-in fade-in slide-in-from-bottom-8 duration-700 ease-out">
-        
+
         {/* Icon + title */}
         <FadeUp className="flex flex-col items-center gap-5 mb-10">
           <div className="relative group">
@@ -301,7 +301,7 @@ export default function Dashboard() {
 
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 animate-in fade-in">
-              <p className="text-red-400 text-sm font-semibold text-center flex items-center justify-center gap-2"><Activity size={16}/> {error}</p>
+              <p className="text-red-400 text-sm font-semibold text-center flex items-center justify-center gap-2"><Activity size={16} /> {error}</p>
             </div>
           )}
         </div>
@@ -311,7 +311,7 @@ export default function Dashboard() {
           <ScalePop delay={0.2} className="mt-6 bg-gray-900/40 backdrop-blur-lg border border-gray-800/80 rounded-3xl p-6 flex flex-col gap-3 shadow-xl hover:border-gray-800 transition-colors">
             <div className="flex items-center justify-between mb-2">
               <p className="text-[11px] font-bold tracking-widest uppercase text-gray-400 flex items-center gap-2">
-                <List size={14}/> Recent Sessions
+                <List size={14} /> Recent Sessions
               </p>
               <button onClick={fetchSessions} className="text-gray-500 hover:text-sky-400 transition-colors hover:rotate-180 duration-500 p-1">
                 <RotateCcw size={14} />
@@ -352,10 +352,10 @@ export default function Dashboard() {
 
       {/* Grid wrapper */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_400px] gap-6 max-w-[1920px] mx-auto w-full flex-1 z-10">
-        
+
         {/* --- LEFT COLUMN --- */}
         <div className="flex flex-col gap-6 w-full">
-          
+
           {/* Live Feed Container */}
           <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/70 shadow-[0_8px_40px_rgba(0,0,0,0.5)] rounded-[2rem] flex flex-col overflow-hidden w-full relative group hover:border-gray-700/70 transition-all duration-500">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800/60 z-10 bg-gray-900/60 relative">
@@ -364,7 +364,7 @@ export default function Dashboard() {
                   <span className="absolute w-3 h-3 bg-sky-500 rounded-full animate-ping opacity-75" />
                   <span className="relative w-2 h-2 bg-sky-400 rounded-full" />
                 </div>
-                <Video size={18} /> 
+                <Video size={18} />
                 <span className="text-white">Live Feed</span>
                 <span className="text-gray-500">—</span>
                 <span className="text-gray-400 text-xs">{source === 'camera' ? 'Warehouse Cam 01' : 'Video Upload'}</span>
@@ -374,12 +374,11 @@ export default function Dashboard() {
                 <Maximize2 size={16} className="cursor-pointer text-gray-500 hover:text-white transition-all duration-300 hover:scale-110 active:scale-95" />
               </div>
             </div>
-            
+
             {/* Feed Area */}
-            <div className="aspect-[16/9] lg:aspect-[21/9] xl:aspect-[16/7] bg-[#02040a] w-full relative flex items-center justify-center overflow-hidden" 
-                 style={{ backgroundImage: 'linear-gradient(#1f2937 1px, transparent 1px), linear-gradient(90deg, #1f2937 1px, transparent 1px)', backgroundSize: '60px 60px' }}>
-              
-              <img ref={imgRef} className="absolute inset-0 w-full h-full object-contain bg-transparent z-0 transition-opacity duration-500" alt="live-feed" />
+            <div className="aspect-video bg-[#02040a] w-full rounded-b-[2rem] relative flex items-center justify-center overflow-hidden border-t border-gray-800/60 shadow-inner">
+
+              <img ref={imgRef} className="absolute inset-0 w-full h-full object-cover bg-transparent z-0 transition-opacity duration-500" alt="live-feed" />
 
               {/* REC Badge */}
               <div className="absolute top-5 left-5 flex items-center gap-2.5 px-4 py-2 rounded-full bg-black/60 backdrop-blur-lg border border-red-500/30 z-20 shadow-xl shadow-black/50 animate-in fade-in zoom-in">
@@ -394,71 +393,72 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          
-          {/* Boxes Detected Widget */}
-          <div className="bg-gradient-to-br from-gray-900/70 to-gray-900/50 backdrop-blur-xl border border-sky-500/20 shadow-[0_8px_40px_rgba(14,165,233,0.15)] rounded-[2rem] p-8 flex flex-col gap-4 w-full relative overflow-hidden group hover:border-sky-500/30 transition-all duration-500">
-             <div className="absolute -top-24 -right-24 w-72 h-72 bg-sky-500/10 rounded-full blur-[80px] pointer-events-none transition-all duration-1000 group-hover:bg-sky-500/15" />
-             
-             <div className="flex items-center justify-between w-full relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-sky-500/10 rounded-xl border border-sky-500/20 shadow-inner">
-                    <Box size={24} className="text-sky-400" />
-                  </div>
-                  <span className="text-lg font-bold text-white tracking-wide">Boxes Detected</span>
+
+          {/* Boxes Detected Widget (Enhanced UI) */}
+          <div className="bg-gray-900/60 backdrop-blur-2xl border border-sky-500/30 shadow-[0_0_50px_-12px_rgba(14,165,233,0.3)] rounded-[2rem] p-8 flex flex-col gap-4 w-full relative overflow-hidden group transition-all duration-700 hover:shadow-[0_0_60px_-10px_rgba(14,165,233,0.4)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-sky-500/10 via-transparent to-indigo-500/10 opacity-50 pointer-events-none" />
+            <div className="absolute -top-32 -right-32 w-96 h-96 bg-sky-500/20 rounded-full blur-[100px] pointer-events-none animate-pulse duration-1000" />
+
+            <div className="flex items-center justify-between w-full relative z-10">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-sky-500/10 rounded-2xl border border-sky-400/30 shadow-[inset_0_0_20px_rgba(14,165,233,0.2)]">
+                  <Box size={28} strokeWidth={2.5} className="text-sky-400 drop-shadow-[0_0_8px_rgba(14,165,233,0.8)]" />
                 </div>
-                <div className="flex items-center gap-2 bg-sky-500/10 text-sky-400 border border-sky-500/30 px-4 py-2 rounded-full text-[11px] font-bold tracking-widest shadow-[0_0_15px_rgba(14,165,233,0.2)]">
-                   <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" /> LIVE
-                </div>
-             </div>
-             
-             <div className="flex items-baseline gap-4 mt-2 w-full relative z-10">
-               <span className="text-7xl sm:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-gray-400 leading-none tabular-nums tracking-tighter drop-shadow-sm transition-all duration-300">
-                 {count}
-               </span>
-               <span className="text-xl text-sky-400 font-bold tracking-widest uppercase opacity-90">boxes</span>
-             </div>
-             
-             {error && (
-               <div className="mt-4 text-sm text-red-400 font-medium flex items-center gap-2 bg-red-400/10 w-max px-4 py-2.5 rounded-xl border border-red-400/20 shadow-inner animate-in fade-in">
-                  <Activity size={16} /> {error}
-               </div>
-             )}
+                <span className="text-xl font-bold text-white tracking-widest uppercase">Verified Count</span>
+              </div>
+              <div className="flex items-center gap-2 bg-sky-950/80 text-sky-400 border border-sky-500/40 px-4 py-2 rounded-full text-xs font-black tracking-[0.2em] shadow-[0_0_20px_rgba(14,165,233,0.3)]">
+                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse shadow-[0_0_10px_rgba(14,165,233,1)]" /> ACTIVE
+              </div>
+            </div>
+
+            <div className="flex items-baseline gap-5 mt-4 w-full relative z-10 pt-4">
+              <span key={count} className="text-8xl sm:text-[140px] font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-sky-100 to-sky-300 leading-none tabular-nums tracking-tighter drop-shadow-2xl transition-all duration-300 animate-in slide-in-from-bottom-2">
+                {count}
+              </span>
+              <span className="text-2xl text-sky-400 font-black tracking-widest uppercase opacity-90 drop-shadow-[0_2px_10px_rgba(14,165,233,0.5)]">boxes</span>
+            </div>
+
+            {error && (
+              <div className="mt-4 text-sm text-red-400 font-medium flex items-center gap-2 bg-red-400/10 w-max px-4 py-2.5 rounded-xl border border-red-400/20 shadow-inner animate-in fade-in">
+                <Activity size={16} /> {error}
+              </div>
+            )}
           </div>
         </div>
 
         {/* --- RIGHT COLUMN --- */}
         <div className="flex flex-col gap-6 w-full">
-          
+
           {/* Dashboard Control Panel */}
           <div className="bg-gray-900/70 backdrop-blur-xl border border-gray-800/80 hover:border-sky-500/30 transition-colors duration-500 rounded-[2rem] p-7 flex flex-col gap-6 w-full relative overflow-hidden shadow-[0_8px_40px_rgba(0,0,0,0.4)]">
             <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-sky-500/40 to-transparent" />
-            
+
             <div className="flex items-center justify-between">
-               <h3 className="text-[11px] font-black text-gray-300 tracking-[0.2em] uppercase flex items-center gap-2">
-                 <Settings2 size={16} className="text-sky-400" /> 
-                 Session Control
-               </h3>
-               <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[10px] font-bold tracking-widest uppercase shadow-inner">
-                 <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" /> Running
-               </span>
+              <h3 className="text-[11px] font-black text-gray-300 tracking-[0.2em] uppercase flex items-center gap-2">
+                <Settings2 size={16} className="text-sky-400" />
+                Session Control
+              </h3>
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[10px] font-bold tracking-widest uppercase shadow-inner">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" /> Running
+              </span>
             </div>
-            
+
             {/* Input Displays */}
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold tracking-[0.15em] text-gray-500 uppercase flex items-center gap-1.5"><Hash size={12}/> Batch ID</label>
+                <label className="text-[10px] font-bold tracking-[0.15em] text-gray-500 uppercase flex items-center gap-1.5"><Hash size={12} /> Batch ID</label>
                 <div className="w-full bg-gray-950/80 border border-gray-800/80 rounded-xl px-4 py-3 text-[15px] text-gray-300 font-extrabold uppercase shadow-inner">
                   {batchId}
                 </div>
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold tracking-[0.15em] text-gray-500 uppercase flex items-center gap-1.5"><User size={12}/> Operator ID</label>
+                <label className="text-[10px] font-bold tracking-[0.15em] text-gray-500 uppercase flex items-center gap-1.5"><User size={12} /> Operator ID</label>
                 <div className="w-full bg-gray-950/80 border border-gray-800/80 rounded-xl px-4 py-3 text-[15px] text-gray-300 font-extrabold shadow-inner">
                   {operatorId}
                 </div>
               </div>
-              
+
               <button
                 onClick={stop}
                 className="mt-3 w-full flex items-center justify-center gap-2 bg-gradient-to-r from-red-900/40 to-red-800/40 hover:from-red-800/60 hover:to-red-700/60 border border-red-700/60 hover:border-red-600/80 text-red-400 hover:text-red-300 py-4 rounded-xl text-[15px] font-black tracking-wide transition-all duration-300 shadow-lg shadow-red-900/20 hover:shadow-red-800/30 hover:-translate-y-0.5 active:translate-y-0.5 group">
@@ -469,11 +469,10 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-3 mt-1">
                 <button
                   onClick={handlePause}
-                  className={`flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 shadow-md ${
-                    isPaused 
-                      ? 'bg-amber-600/30 border-2 border-amber-500/70 text-amber-300 hover:bg-amber-600/50 shadow-amber-500/20' 
+                  className={`flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 shadow-md ${isPaused
+                      ? 'bg-amber-600/30 border-2 border-amber-500/70 text-amber-300 hover:bg-amber-600/50 shadow-amber-500/20'
                       : 'bg-gray-800/80 border border-gray-700 text-gray-300 hover:bg-gray-700/80 hover:border-gray-600'
-                  }`}>
+                    }`}>
                   {isPaused ? <Play size={15} fill="currentColor" /> : <Square size={15} />}
                   {isPaused ? 'Resume' : 'Pause'}
                 </button>
@@ -489,7 +488,7 @@ export default function Dashboard() {
                   Reset
                 </button>
               </div>
-              
+
               {/* Reset Notification */}
               {resetNotification && (
                 <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 animate-in fade-in slide-in-from-top-2 shadow-lg shadow-sky-500/10">
@@ -499,33 +498,33 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-            
+
             {/* Interactive Toggles & Sliders */}
             <div className="flex flex-col gap-6 border-t border-gray-800/80 pt-6">
-              
+
               {/* Confidence Slider */}
               <div className="flex flex-col gap-3 group">
-                 <div className="flex items-center justify-between text-[11px] font-bold text-gray-400 transition-colors group-hover:text-gray-300">
-                   <div className="flex items-center gap-2 uppercase tracking-wide">
-                     <Activity size={15} className="text-sky-400" /> Confidence Threshold
-                   </div>
-                   <div className="flex items-center gap-1 bg-sky-500/10 border border-sky-500/30 px-3 py-1.5 rounded-lg text-sky-400 font-black text-sm shadow-inner tracking-wider">
-                     {confidence}%
-                   </div>
-                 </div>
-                 <input 
-                   type="range" 
-                   min="0"
-                   max="100"
-                   value={confidence}
-                   onChange={(e) => setConfidence(e.target.value)}
-                   className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer outline-none transition-all duration-300 hover:h-2.5 hover:shadow-[0_0_15px_rgba(14,165,233,0.3)] focus:ring-2 focus:ring-sky-500/40" 
-                   style={{ accentColor: '#0ea5e9' }} 
-                 />
+                <div className="flex items-center justify-between text-[11px] font-bold text-gray-400 transition-colors group-hover:text-gray-300">
+                  <div className="flex items-center gap-2 uppercase tracking-wide">
+                    <Activity size={15} className="text-sky-400" /> Confidence Threshold
+                  </div>
+                  <div className="flex items-center gap-1 bg-sky-500/10 border border-sky-500/30 px-3 py-1.5 rounded-lg text-sky-400 font-black text-sm shadow-inner tracking-wider">
+                    {confidence}%
+                  </div>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={confidence}
+                  onChange={(e) => setConfidence(e.target.value)}
+                  className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer outline-none transition-all duration-300 hover:h-2.5 hover:shadow-[0_0_15px_rgba(14,165,233,0.3)] focus:ring-2 focus:ring-sky-500/40"
+                  style={{ accentColor: '#0ea5e9' }}
+                />
               </div>
             </div>
           </div>
-          
+
         </div>
       </div>
     </div>
@@ -558,7 +557,7 @@ export default function Dashboard() {
         {/* Final count */}
         <div className="bg-gray-900/60 backdrop-blur-2xl border border-gray-800/80 shadow-[0_8px_40px_rgba(2,132,199,0.15)] rounded-[2.5rem] p-10 flex flex-col items-center gap-2 w-full relative overflow-hidden group hover:border-sky-900/50 transition-colors">
           <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-sky-500 to-transparent opacity-60" />
-          
+
           <p className="text-[11px] text-sky-500 font-black uppercase tracking-[0.3em] mb-2">Final Count</p>
           <span className="text-8xl sm:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-gray-500 tabular-nums tracking-tighter leading-none pb-2 drop-shadow-md group-hover:scale-105 transition-transform duration-500">{count}</span>
           <p className="text-[13px] text-gray-500 font-bold tracking-wide mt-3 uppercase">Verified Boxes Detected</p>

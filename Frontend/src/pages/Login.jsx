@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { LogIn, Mail, Lock, AlertCircle, Package } from 'lucide-react'
+import { LogIn, Mail, Lock, AlertCircle, Package, Eye, EyeOff } from 'lucide-react'
 import { login } from '../api'
 
 export default function Login() {
@@ -11,6 +11,7 @@ export default function Login() {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleChange = (e) => {
     setFormData(prev => ({
@@ -69,7 +70,8 @@ export default function Login() {
         </div>
 
         {/* Login form */}
-        <form onSubmit={handleSubmit} className="bg-gray-900/60 backdrop-blur-2xl border border-gray-800/80 shadow-[0_8px_40px_rgba(0,0,0,0.8)] rounded-[2rem] p-8 flex flex-col gap-6 relative overflow-hidden">
+        <form onSubmit={handleSubmit} className="bg-gray-900/60 backdrop-blur-2xl border border-sky-500/30 shadow-[0_0_50px_-12px_rgba(14,165,233,0.3)] rounded-[2rem] p-8 flex flex-col gap-6 relative overflow-hidden group transition-all duration-700 hover:shadow-[0_0_60px_-10px_rgba(14,165,233,0.4)]">
+          <div className="absolute inset-0 bg-gradient-to-br from-sky-500/5 via-transparent to-indigo-500/5 opacity-50 pointer-events-none" />
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-sky-500/50 to-transparent" />
 
           {error && (
@@ -96,20 +98,29 @@ export default function Login() {
             />
           </div>
 
-          <div className="flex flex-col gap-2 group">
+          <div className="flex flex-col gap-2 group z-10">
             <label className="text-[11px] text-gray-400 font-bold tracking-widest uppercase flex items-center gap-2 transition-colors group-focus-within:text-sky-400">
               <Lock size={13} className="text-gray-500 group-focus-within:text-sky-400 transition-colors" /> Password
             </label>
-            <input
-              type="password"
-              name="password"
-              required
-              autoComplete="current-password"
-              placeholder="••••••••"
-              className="w-full bg-gray-950/80 border border-gray-800 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 rounded-2xl px-5 py-3.5 text-sm text-gray-100 outline-none transition-all duration-300 placeholder:text-gray-700 shadow-inner"
-              value={formData.password}
-              onChange={handleChange}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+                className="w-full bg-gray-950/80 border border-gray-800 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 rounded-2xl px-5 py-3.5 pr-12 text-sm text-gray-100 outline-none transition-all duration-300 placeholder:text-gray-700 shadow-inner"
+                value={formData.password}
+                onChange={handleChange}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-sky-400 transition-colors focus:outline-none"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button
