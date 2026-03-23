@@ -20,7 +20,7 @@ BoxGuard is an intelligent warehouse automation system built for NEXUS 2025 that
 
 ### Key Highlights
 
-- ✅ **95%+ Accuracy**: Custom-trained YOLOv8 model for box detection
+- ✅ **95%+ Accuracy**: Custom-trained YOLOv5 model for box detection
 - 🎥 **Video Evidence**: Automatic recording of every packing session
 - 📄 **Instant Challans**: Auto-generated PDF documents with QR codes
 - 📊 **Operator Analytics**: Comprehensive performance tracking and insights
@@ -33,7 +33,7 @@ BoxGuard is an intelligent warehouse automation system built for NEXUS 2025 that
 ### Core Functionality
 
 #### 1. Real-Time AI Detection
-- YOLOv8-powered computer vision with sub-50ms latency
+- YOLOv5-powered computer vision with sub-50ms latency
 - Custom-trained model achieving 95%+ accuracy on warehouse boxes
 - Live box counting with visual feedback
 - Adjustable confidence threshold (0-100%)
@@ -96,7 +96,7 @@ BoxGuard is an intelligent warehouse automation system built for NEXUS 2025 that
 - **Video Processing**: OpenCV (cv2)
 
 ### AI/ML
-- **Model**: YOLOv8n (Ultralytics)
+- **Model**: YOLOv5n (Ultralytics)
 - **Framework**: PyTorch
 - **Computer Vision**: OpenCV
 - **Detection**: Real-time object detection
@@ -173,9 +173,9 @@ brew services start mongodb-community
 sudo systemctl start mongod
 ```
 
-### 5. Download YOLOv8 Model
+### 5. Download YOLOv5 Model
 
-The YOLOv8n model will be downloaded automatically on first run, or you can manually place it:
+The YOLOv5n model will be downloaded automatically on first run, or you can manually place it:
 ```bash
 # Place yolov8n.pt in Backend/models/
 ```
@@ -309,7 +309,7 @@ boxguard/
 │
 ├── Backend/                     # Python Flask backend
 │   ├── models/                 # AI models
-│   │   └── yolov8n.pt         # YOLOv8 model
+│   │   └── yolov5n.pt         # YOLOv5 model
 │   ├── main.py                # Main API server
 │   ├── auth.py                # Authentication logic
 │   ├── database.py            # MongoDB operations
@@ -444,10 +444,10 @@ Check: mongod --version
 Start: net start MongoDB (Windows) or brew services start mongodb-community (macOS)
 ```
 
-**YOLOv8 Model Not Found**
+**YOLOv5 Model Not Found**
 ```
 Solution: Model will auto-download on first run
-Manual: Download yolov8n.pt and place in Backend/models/
+Manual: Download yolov5n.pt and place in Backend/models/
 ```
 
 **WebSocket Connection Failed**
@@ -487,7 +487,7 @@ This project was built for NEXUS 2025. For contributions or issues, please conta
 
 ## 🙏 Acknowledgments
 
-- **Ultralytics** for YOLOv8
+- **Ultralytics** for YOLOv5
 - **OpenCV** for computer vision capabilities
 - **MongoDB** for database solutions
 - **React** and **Vite** for frontend framework
