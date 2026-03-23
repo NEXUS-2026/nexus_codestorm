@@ -23,7 +23,12 @@ def batch_id_exists(batch_id: str, user_id: str = None) -> bool:
     query = {"batch_id": batch_id}
     if user_id:
         query["user_id"] = user_id
-    return sessions_col.find_one(query) is not None
+    print(f"[batch_id_exists] Query: {query}")
+    result = sessions_col.find_one(query)
+    print(f"[batch_id_exists] Found: {result is not None}")
+    if result:
+        print(f"[batch_id_exists] Session details: user_id={result.get('user_id')}, batch_id={result.get('batch_id')}, status={result.get('status')}")
+    return result is not None
 
 
 def create_session(batch_id: str, operator_id: str, user_id: str, source_type: str = "live", upload_path: str = None) -> str:

@@ -2,10 +2,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Play, Square, RotateCcw, Camera, User, Hash, Box, Package, Upload, Video, BarChart2, List, Activity, Maximize2, Settings2, Download } from 'lucide-react'
 import { useSession } from '../context/SessionContext'
-import { getSessions, uploadVideo } from '../api'
-import axios from 'axios'
+import { getSessions, uploadVideo, validateBatch, validateOperator, updateConfidence } from '../api'
 import { FadeUp, ScalePop } from '../components/Motion'
 import Tooltip from '../components/Tooltip'
+import axios from 'axios'
 
 const BATCH_RE = /^[A-Z][A-Z0-9]*-\d{3,}$/
 const OPERATOR_RE = /^OP-\d{3,}$/
@@ -53,7 +53,7 @@ export default function Dashboard() {
       // Debounce confidence updates
       const timer = setTimeout(async () => {
         try {
-          await axios.post('http://localhost:5000/settings/confidence', { value: confidence / 100 })
+          await updateConfidence(confidence / 100)
           console.log('Confidence threshold updated to:', confidence)
         } catch (error) {
           console.error('Failed to update confidence:', error)
@@ -76,8 +76,8 @@ export default function Dashboard() {
     setIsResetting(true)
     try {
       await axios.post('http://localhost:5000/control/reset')
-      // Reset will be handled by backend, just reset local state
-      setIsPaused(false)
+      // After reset, keep paused state so user can resume
+      setIsPaused(true)
       // Show notification
       setResetNotification(true)
       setTimeout(() => setResetNotification(false), 3000)
@@ -106,7 +106,7 @@ export default function Dashboard() {
     setBatchChecking(true)
     batchDebounce.current = setTimeout(async () => {
       try {
-        await axios.post('http://localhost:5000/validate/batch', { batch_id: val })
+        await validateBatch(val)
         setBatchError('')
       } catch (e) {
         setBatchError(e.response?.data?.error || 'Invalid batch ID')
@@ -137,7 +137,7 @@ export default function Dashboard() {
 
       // Validate format against backend
       try {
-        await axios.post('http://localhost:5000/validate/operator', { operator_id: val })
+        await validateOperator(val)
         setOperatorError('')
       } catch (e) {
         setOperatorError(e.response?.data?.error || 'Invalid operator ID')
@@ -470,7 +470,7 @@ export default function Dashboard() {
                 <button
                   onClick={handlePause}
                   className={`flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 shadow-md ${isPaused
-                      ? 'bg-amber-600/30 border-2 border-amber-500/70 text-amber-300 hover:bg-amber-600/50 shadow-amber-500/20'
+                      ? 'bg-green-600/30 border-2 border-green-500/70 text-green-300 hover:bg-green-600/50 shadow-green-500/20'
                       : 'bg-gray-800/80 border border-gray-700 text-gray-300 hover:bg-gray-700/80 hover:border-gray-600'
                     }`}>
                   {isPaused ? <Play size={15} fill="currentColor" /> : <Square size={15} />}
@@ -493,7 +493,7 @@ export default function Dashboard() {
               {resetNotification && (
                 <div className="bg-sky-500/10 border border-sky-500/30 rounded-xl p-3 animate-in fade-in slide-in-from-top-2 shadow-lg shadow-sky-500/10">
                   <p className="text-sky-400 text-sm font-semibold text-center flex items-center justify-center gap-2">
-                    <RotateCcw size={16} className="animate-spin" /> Count reset to zero
+                    <RotateCcw size={16} /> Count reset - Press Resume to continue
                   </p>
                 </div>
               )}

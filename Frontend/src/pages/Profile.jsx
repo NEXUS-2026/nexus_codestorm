@@ -4,6 +4,18 @@ import { User, Building2, MapPin, Phone, Mail, Package, Truck, Save, ArrowLeft, 
 import axios from 'axios'
 import { FadeUp } from '../components/Motion'
 
+const api = axios.create({ 
+  baseURL: import.meta.env.DEV ? '/api' : 'http://localhost:5000' 
+})
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
 export default function Profile() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -29,9 +41,13 @@ export default function Profile() {
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem('token')
-      const { data } = await axios.get('http://localhost:5000/profile', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      if (!token) {
+        setError('Not authenticated. Please login again.')
+        setLoading(false)
+        return
+      }
+      
+      const { data } = await api.get('/profile')
       setFormData({
         warehouse_name: data.warehouse_name || '',
         warehouse_location: data.warehouse_location || '',
@@ -42,8 +58,17 @@ export default function Profile() {
         courier_partner: data.courier_partner || '',
         email: data.email || ''
       })
+      setError('')
     } catch (err) {
-      setError('Failed to load profile')
+      console.error('Profile fetch error:', err)
+      if (err.code === 'ERR_NETWORK' || err.message.includes('Network Error')) {
+        setError('Cannot connect to server. Please ensure the backend is running on port 5000.')
+      } else if (err.response?.status === 401) {
+        setError('Session expired. Please login again.')
+        setTimeout(() => navigate('/login'), 2000)
+      } else {
+        setError(err.response?.data?.error || 'Failed to load profile')
+      }
     } finally {
       setLoading(false)
     }
@@ -63,9 +88,13 @@ export default function Profile() {
 
     try {
       const token = localStorage.getItem('token')
-      const { data } = await axios.put('http://localhost:5000/profile', formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
+      if (!token) {
+        setError('Not authenticated. Please login again.')
+        setSaving(false)
+        return
+      }
+      
+      const { data } = await api.put('/profile', formData)
       
       // Update local storage
       const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -75,7 +104,15 @@ export default function Profile() {
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update profile')
+      console.error('Profile update error:', err)
+      if (err.code === 'ERR_NETWORK' || err.message.includes('Network Error')) {
+        setError('Cannot connect to server. Please ensure the backend is running on port 5000.')
+      } else if (err.response?.status === 401) {
+        setError('Session expired. Please login again.')
+        setTimeout(() => navigate('/login'), 2000)
+      } else {
+        setError(err.response?.data?.error || 'Failed to update profile')
+      }
     } finally {
       setSaving(false)
     }

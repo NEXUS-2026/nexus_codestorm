@@ -163,7 +163,8 @@ class BoxCounter:
         self._confs  = confs
         self._labels = labels
         self._tracker.update(boxes)
-        return self._tracker.next_object_id, confs
+        # Return: (tracker_id, confidences, current_frame_count)
+        return self._tracker.next_object_id, confs, len(boxes)
 
     def _process_v8(self, frame: np.ndarray) -> tuple:
         # Pass iou explicitly to YOLOv8 inference with dynamic confidence
@@ -187,7 +188,8 @@ class BoxCounter:
         self._confs  = confs
         self._labels = labels
         self._tracker.update(boxes)
-        return self._tracker.next_object_id, confs
+        # Return: (tracker_id, confidences, current_frame_count)
+        return self._tracker.next_object_id, confs, len(boxes)
 
     def draw_overlay(self, frame: np.ndarray, count: int) -> np.ndarray:
         for (x1, y1, x2, y2), conf, label in zip(self._boxes, self._confs, self._labels):

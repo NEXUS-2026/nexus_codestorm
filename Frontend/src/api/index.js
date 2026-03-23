@@ -20,6 +20,10 @@ export const login = (email, password) => api.post('/auth/login', { email, passw
 export const verifyToken = () => api.get('/auth/verify')
 export const getCurrentUser = () => api.get('/auth/me')
 
+// Validation
+export const validateBatch = (batch_id) => api.post('/validate/batch', { batch_id })
+export const validateOperator = (operator_id) => api.post('/validate/operator', { operator_id })
+
 // Sessions
 export const getSessions      = ()    => api.get('/sessions')
 export const getSession       = (id)  => api.get(`/sessions/${id}`)
@@ -34,5 +38,10 @@ export const uploadVideo      = (file) => {
 }
 export const downloadChallan  = (id)  => api.post(`/sessions/${id}/challan`, {}, { responseType: 'blob' })
 export const deleteSession    = (id)  => api.delete(`/sessions/${id}`)
+
+// Control endpoints
+export const updateConfidence = (value) => api.post('/settings/confidence', { value })
+export const togglePause      = ()      => api.post('/control/pause')
+export const resetSession     = ()      => api.post('/control/reset')
 
 export const WS_URL = 'ws://localhost:5000/ws/stream'

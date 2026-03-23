@@ -43,7 +43,7 @@ export default function Landing() {
 
   const howItWorks = [
     { num: '01', title: 'Connect Camera', desc: 'Live webcam or upload pre-recorded video', icon: Video },
-    { num: '02', title: 'AI Detection', desc: 'YOLOv8 counts boxes in real-time with 95%+ accuracy', icon: Cpu },
+    { num: '02', title: 'AI Detection', desc: 'YOLOv5 counts boxes in real-time with 95%+ accuracy', icon: Cpu },
     { num: '03', title: 'Track Session', desc: 'Monitor count, operator, and batch ID live', icon: BarChart3 },
     { num: '04', title: 'Generate Challan', desc: 'Auto-create PDF with video evidence and audit trail', icon: FileText }
   ]
@@ -52,7 +52,7 @@ export default function Landing() {
     {
       icon: Eye,
       title: 'Real-Time AI Detection',
-      desc: 'YOLOv8-powered computer vision tracks every box with sub-50ms latency and 95%+ accuracy',
+      desc: 'YOLOv5-powered computer vision tracks every box with sub-50ms latency and 95%+ accuracy',
       color: 'from-sky-400 to-blue-500'
     },
     {
@@ -93,7 +93,7 @@ export default function Landing() {
   const techStack = [
     { category: 'Frontend', techs: ['React', 'Tailwind CSS', 'Framer Motion', 'Recharts'], icon: Package },
     { category: 'Backend', techs: ['Python Flask', 'MongoDB', 'WebSocket'], icon: Database },
-    { category: 'AI/ML', techs: ['YOLOv8', 'OpenCV', 'Ultralytics'], icon: Cpu },
+    { category: 'AI/ML', techs: ['YOLOv5', 'OpenCV', 'Ultralytics'], icon: Cpu },
     { category: 'Tools', techs: ['ReportLab', 'Axios', 'React Router'], icon: Target }
   ]
 
@@ -406,7 +406,7 @@ export default function Landing() {
               <ul className="space-y-3">
                 <li className="flex items-start gap-3">
                   <CheckCircle2 size={20} className="text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-gray-400">Custom-trained YOLOv8 model achieving 95%+ accuracy on warehouse boxes</span>
+                  <span className="text-gray-400">Custom-trained YOLOv5 model achieving 95%+ accuracy on warehouse boxes</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle2 size={20} className="text-sky-400 flex-shrink-0 mt-0.5" />
